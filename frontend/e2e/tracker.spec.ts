@@ -126,6 +126,9 @@ test("GPU failure retains a readable functional aircraft list", async ({
   await expect(
     page.getByRole("region", { name: "Selected aircraft details" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Follow aircraft", exact: true }),
+  ).toBeDisabled();
 });
 test("mobile controls stay inside viewport and selection opens readable details", async ({
   page,

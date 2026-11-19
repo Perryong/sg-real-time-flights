@@ -12,6 +12,7 @@ export function useTraffic() {
     [playing, setPlaying] = useState(true);
   const generation = useRef(0),
     offset = useRef(0),
+    synchronized = useRef(false),
     playback = useRef<PlaybackController | null>(null);
   const getNow = useCallback(
     () => playback.current?.time ?? Date.now() / 1000 + offset.current,
@@ -33,6 +34,21 @@ export function useTraffic() {
     playback.current?.dispose();
     playback.current = null;
     const active = () => !disposed && generation.current === myGeneration;
+    const synchronize = (serverTime: number) => {
+      const candidate = serverTime - Date.now() / 1000;
+      // A delayed frame may advance our estimate, but must never rewind it.
+      offset.current = synchronized.current
+        ? Math.max(offset.current, candidate)
+        : candidate;
+      synchronized.current = true;
+    };
+    const replaceConnection = () => {
+      connectionId++; // Invalidate queued callbacks before closing the old socket.
+      clearTimeout(reconnect);
+      socket?.close();
+      setNow(getNow());
+      connect();
+    };
     const connect = () => {
       if (!active()) return;
       connectionId++;
@@ -45,17 +61,22 @@ export function useTraffic() {
       );
       socket.onmessage = (event) => {
         if (!active() || id !== connectionId) return;
+        if (Date.now() - lastMessage > 30000) {
+          replaceConnection();
+          return;
+        }
         try {
           const data = JSON.parse(event.data);
           if (
             data.type === "heartbeat" &&
             isStatus(data.status) &&
+            data.status.mode === "live" &&
             typeof data.server_time === "number" &&
             Number.isFinite(data.server_time) &&
             state.snapshot?.epoch === data.epoch
           ) {
             lastMessage = Date.now();
-            offset.current = data.server_time - Date.now() / 1000;
+            synchronize(data.server_time);
             setTransport("connected");
             setSnapshot((old) => (old ? { ...old, status: data.status } : old));
             return;
@@ -64,7 +85,7 @@ export function useTraffic() {
           const next = acceptSnapshot(state, data, id);
           if (next === state) return;
           state = next;
-          offset.current = data.server_time - Date.now() / 1000;
+          synchronize(data.server_time);
           lastMessage = Date.now();
           attempt = 0;
           setError(null);
@@ -121,7 +142,7 @@ export function useTraffic() {
         Date.now() - lastMessage > 30000 &&
         socket.readyState === WebSocket.OPEN
       )
-        socket.close();
+        replaceConnection();
       setNow(getNow());
     }, 250);
     const resume = () => {
@@ -131,7 +152,7 @@ export function useTraffic() {
         mode === "live" &&
         Date.now() - lastMessage > 30000
       )
-        socket?.close();
+        replaceConnection();
     };
     document.addEventListener("visibilitychange", resume);
     return () => {

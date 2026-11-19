@@ -77,7 +77,7 @@ export class AircraftLayer {
     return Cartesian3.fromDegrees(
       p.lon,
       p.lat,
-      t.latest.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
+      p.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
     );
   }
   update(tracks: Track[], selected: string | null, trails: boolean) {
@@ -157,15 +157,18 @@ export class AircraftLayer {
             minimumPixelSize: 24,
             maximumScale: 100,
             scale: 1,
-            show: new CallbackProperty(
-              () =>
+            show: new CallbackProperty(() => {
+              const displayed = displayPosition(
+                current(),
+                this.now() - 10,
+                this.now(),
+              );
+              return (
                 this.models &&
-                (current().latest.alt_geom_m !== null ||
-                  current().latest.alt_baro_m !== null ||
-                  current().latest.ground === true) &&
-                this.viewer.camera.positionCartographic.height < 12000,
-              false,
-            ),
+                (displayed.altitude !== null || displayed.ground === true) &&
+                this.viewer.camera.positionCartographic.height < 12000
+              );
+            }, false),
             distanceDisplayCondition: new DistanceDisplayCondition(0, 15000),
           },
           label: {

@@ -15,6 +15,7 @@ import {
 import type { Airport, Track } from "../data/types";
 import { addAirport } from "./airport";
 import { AircraftLayer } from "./aircraft";
+import type {} from "./performance";
 import { DarkMapProvider } from "./imagery";
 export type CameraAction = {
   kind: "overview" | "north" | "in" | "out" | "runway";
@@ -35,6 +36,7 @@ interface Props {
   onSelect: (id: string) => void;
   onError: (message: string) => void;
   onReady: () => void;
+  onUnavailable: () => void;
   onVisibleCount: (n: number) => void;
 }
 export default function MapScene(props: Props) {
@@ -47,6 +49,8 @@ export default function MapScene(props: Props) {
   useEffect(() => {
     if (!container.current) return;
     const modelAbort = new AbortController();
+    const metrics = window.__changiBenchmark;
+    let contextLost: (() => void) | undefined;
     let viewer: Viewer;
     let handler: ScreenSpaceEventHandler | undefined;
     try {
@@ -116,12 +120,54 @@ export default function MapScene(props: Props) {
         if (picked?.id?.id && layer.current?.tracks.has(picked.id.id))
           latest.current.onSelect(picked.id.id);
       }, ScreenSpaceEventType.LEFT_CLICK);
+      let failed = false;
+      const failRenderer = (message: string) => {
+        if (failed) return;
+        failed = true;
+        viewer.trackedEntity = undefined;
+        viewer.useDefaultRenderLoop = false;
+        if (metrics) {
+          metrics.failed = true;
+          metrics.ready = false;
+        }
+        setReady(false);
+        latest.current.onUnavailable();
+        latest.current.onError(message);
+      };
+      contextLost = () =>
+        failRenderer(
+          "WebGL context lost. Follow stopped; reload to restore the map. The traffic list remains available.",
+        );
+      viewer.scene.canvas.addEventListener("webglcontextlost", contextLost);
       viewer.scene.renderError.addEventListener((_scene, error) =>
-        latest.current.onError(
-          "3D rendering interrupted. The traffic list remains available. " +
+        failRenderer(
+          "3D rendering interrupted. Follow stopped. The traffic list remains available. " +
             String(error).slice(0, 100),
         ),
       );
+      if (metrics) {
+        metrics.ready = true;
+        viewer.scene.postRender.addEventListener(() => {
+          if (metrics.failed) return;
+          const now = performance.now();
+          metrics.lastRender = now;
+          if (metrics.frames.length < 60000) metrics.frames.push(now);
+          metrics.aircraftCount = layer.current?.entities.size ?? 0;
+          const rect = viewer.camera.computeViewRectangle();
+          metrics.visibleCount = rect
+            ? latest.current.tracks.filter((t) => {
+                const x = CMath.toRadians(t.latest.lon),
+                  y = CMath.toRadians(t.latest.lat);
+                return (
+                  x >= rect.west &&
+                  x <= rect.east &&
+                  y >= rect.south &&
+                  y <= rect.north
+                );
+              }).length
+            : 0;
+        });
+      }
       viewer.camera.moveEnd.addEventListener(() => {
         const rectangle = viewer.camera.computeViewRectangle();
         if (!rectangle) return;
@@ -141,6 +187,11 @@ export default function MapScene(props: Props) {
       setReady(true);
       latest.current.onReady();
     } catch (e) {
+      if (metrics) {
+        metrics.failed = true;
+        metrics.ready = false;
+      }
+      latest.current.onUnavailable();
       container.current?.replaceChildren();
       latest.current.onError(
         "WebGL is unavailable. You can still search and inspect aircraft in the traffic list.",
@@ -149,6 +200,12 @@ export default function MapScene(props: Props) {
     }
     return () => {
       modelAbort.abort();
+      if (contextLost)
+        viewer.scene.canvas.removeEventListener(
+          "webglcontextlost",
+          contextLost,
+        );
+      if (metrics) metrics.ready = false;
       handler?.destroy();
       layer.current?.clear();
       layer.current = null;

@@ -70,3 +70,25 @@ def test_parallel_ambiguity_is_retained():
     rs=copy.deepcopy(RUNWAYS[:1]); other=copy.deepcopy(rs[0]); other['properties']['thresholds'][0]['id']='AMBIGUOUS';rs.append(other)
     p=infer_phase(series(),rs,EPOCH+20)
     assert len(p.candidate_runways)==2 and p.confidence=='low'
+
+@pytest.mark.parametrize('transition,expected', [('landing','landing_candidate'),('go_around','go_around_candidate')])
+def test_sequential_transition_preserves_established_approach(transition,expected):
+    from backend.app.store import TrackStore
+    store=TrackStore(); phases=[]
+    h=series(along=-2000 if transition=='landing' else -5000)
+    tail=series(ground=transition=='landing',rate=0 if transition=='landing' else 1200,
+                speeds=[120,100,80,60,40] if transition=='landing' else None,
+                along=0 if transition=='landing' else -3000)
+    for i,o in enumerate(tail):
+        o.position_time=EPOCH+25+i*5;o.receipt_time=o.position_time
+    for o in h+tail:
+        store.ingest([o],o.position_time)
+        t=next(iter(store.tracks.values()))
+        t.phase=infer_phase(t.history,RUNWAYS,o.position_time,t.phase)
+        phases.append(t.phase.phase)
+    assert 'final_approach_candidate' in phases
+    assert expected in phases
+    # A discontinuity must discard the earlier approach context.
+    gap=tail[-1].model_copy(update={'position_time':EPOCH+100,'receipt_time':EPOCH+100})
+    store.ingest([gap],EPOCH+100);t=next(iter(store.tracks.values()))
+    assert infer_phase(t.history,RUNWAYS,EPOCH+100,t.phase).phase=='unknown'

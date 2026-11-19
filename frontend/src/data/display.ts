@@ -4,6 +4,7 @@ export interface DisplayPosition {
   lat: number;
   lon: number;
   altitude: number | null;
+  ground: boolean | null;
   method: "observed" | "interpolated" | "predicted" | "last_known";
   renderTime: number;
   sourceTimes: number[];
@@ -21,6 +22,7 @@ export function displayPosition(
     lat: o.lat,
     lon: o.lon,
     altitude: altitude(o),
+    ground: o.ground,
     method: "last_known",
     renderTime: o.position_time ?? renderTime,
     sourceTimes: o.position_time === null ? [] : [o.position_time],
@@ -51,6 +53,14 @@ export function displayPosition(
         lat: a.lat + (b.lat - a.lat) * f,
         lon: ((a.lon + delta * f + 540) % 360) - 180,
         altitude: aa !== null && ab !== null ? aa + (ab - aa) * f : null,
+        ground:
+          f === 0
+            ? a.ground
+            : f === 1
+              ? b.ground
+              : a.ground === b.ground
+                ? a.ground
+                : null,
         method: f === 0 || f === 1 ? "observed" : "interpolated",
         renderTime,
         sourceTimes: [ta, tb],

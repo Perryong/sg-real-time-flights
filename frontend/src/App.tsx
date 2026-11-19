@@ -188,6 +188,10 @@ export default function App() {
             onSelect={choose}
             onError={setMapError}
             onReady={() => setMapReady(true)}
+            onUnavailable={() => {
+              setMapReady(false);
+              setFollow(false);
+            }}
             onVisibleCount={setInView}
           />
         </Suspense>
@@ -401,6 +405,7 @@ export default function App() {
             track={chosen}
             now={feed.now}
             follow={follow}
+            followAvailable={mapReady}
             onFollow={() => setFollow(!follow)}
             onClose={() => {
               setSelected(null);

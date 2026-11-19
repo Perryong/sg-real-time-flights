@@ -36,3 +36,51 @@ test("missing aircraft mesh uses markers and explains degraded detail", async ({
     page.getByRole("region", { name: "Selected aircraft details" }),
   ).toBeVisible();
 });
+
+test("context loss stops follow and invalidates actual scene performance", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    (window as any).__changiBenchmark = {
+      frames: [],
+      failed: false,
+      ready: false,
+      aircraftCount: 0,
+      visibleCount: 0,
+      lastRender: 0,
+    };
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Demo", exact: true }).click();
+  await page.getByRole("button", { name: "Select SYN 101" }).click();
+  await page
+    .getByRole("button", { name: "Follow aircraft", exact: true })
+    .click();
+  await page.waitForFunction(
+    () => (window as any).__changiBenchmark.frames.length > 2,
+    {},
+    { timeout: 5000 },
+  );
+  const lost = await page
+    .locator(".map-canvas canvas")
+    .evaluate((canvas: any) => {
+      const gl = canvas.getContext("webgl2");
+      const ext = gl?.getExtension("WEBGL_lose_context");
+      ext?.loseContext();
+      return !!ext;
+    });
+  expect(lost).toBe(true);
+  await expect(
+    page.getByRole("button", { name: "Follow aircraft", exact: true }),
+  ).toBeDisabled();
+  expect(
+    await page.evaluate(() => (window as any).__changiBenchmark.failed),
+  ).toBe(true);
+  const frames = await page.evaluate(
+    () => (window as any).__changiBenchmark.frames.length,
+  );
+  await page.waitForTimeout(200);
+  expect(
+    await page.evaluate(() => (window as any).__changiBenchmark.frames.length),
+  ).toBe(frames);
+});

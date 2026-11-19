@@ -22,6 +22,7 @@ interface Props {
   track: Track;
   now: number;
   follow: boolean;
+  followAvailable?: boolean;
   onFollow: () => void;
   onClose: () => void;
 }
@@ -29,6 +30,7 @@ export default function AircraftDetails({
   track,
   now,
   follow,
+  followAvailable = true,
   onFollow,
   onClose,
 }: Props) {
@@ -125,7 +127,8 @@ export default function AircraftDetails({
         className={`primary-button follow-button ${follow ? "following" : ""}`}
         aria-label={follow ? "Stop following" : "Follow aircraft"}
         onClick={onFollow}
-        disabled={state === "lost"}
+        disabled={state === "lost" || !followAvailable}
+        title={!followAvailable ? "Map renderer unavailable" : undefined}
       >
         <Crosshair size={16} />
         {follow ? "Stop following" : "Follow aircraft"}

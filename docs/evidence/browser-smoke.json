@@ -1,0 +1,16 @@
+{
+  "browser": "Installed Google Chrome 157.0.8103.79",
+  "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)",
+  "cold_local_scene_seconds": 1.253,
+  "warm_local_scene_seconds": 0.433,
+  "errors": [],
+  "checks": [
+    "Live unavailable",
+    "explicit demo",
+    "all three runway camera controls",
+    "follow and Escape",
+    "day/night presentation",
+    "390px geographic layout"
+  ],
+  "limitations": "Local bundle/geometry readiness, not a remote-network SLA or authoritative geometry validation"
+}

@@ -1,11 +1,13 @@
 import { chromium } from "@playwright/test";
 import fs from "node:fs";
+import { summarizeScene } from "../src/scene/performance.ts";
 const duration = Number(process.argv[2] ?? 300),
   count = 100;
 const template = JSON.parse(
   fs.readFileSync("../tests/fixtures/scenarios/changi-demo.json", "utf8"),
 ).frames.at(-1);
 const browser = await chromium.launch({
+  channel: process.env.BENCH_CHANNEL || undefined,
   headless: true,
   args: ["--enable-precise-memory-info"],
 });
@@ -76,6 +78,16 @@ await page.routeWebSocket("**/ws/aircraft", (ws) => {
 });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
+await page.addInitScript(() => {
+  window.__changiBenchmark = {
+    frames: [],
+    ready: false,
+    failed: false,
+    lastRender: 0,
+    aircraftCount: 0,
+    visibleCount: 0,
+  };
+});
 await page.goto(process.env.BENCH_URL ?? "http://127.0.0.1:4177/");
 await page.getByRole("button", { name: "Select BENCH 0", exact: true }).click();
 await page.evaluate(() => {
@@ -91,22 +103,24 @@ if (process.env.PROFILE) {
   await cdp.send("Profiler.enable");
   await cdp.send("Profiler.start");
 }
+await page.waitForFunction(
+  () =>
+    window.__changiBenchmark?.ready &&
+    window.__changiBenchmark.aircraftCount === 100,
+);
 await page.evaluate(() => {
-  window.__bench = {
-    intervals: [],
-    last: 0,
-    start: performance.now(),
-    heaps: [],
-  };
-  function frame(t) {
-    const b = window.__bench;
-    if (!b) return;
-    if (b.last) b.intervals.push(t - b.last);
-    b.last = t;
-    requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
+  window.__changiBenchmark.frames = [];
+  window.__bench = { heaps: [] };
 });
+if (process.env.INDUCE_CONTEXT_LOSS)
+  await page
+    .locator(".map-canvas canvas")
+    .evaluate((canvas) =>
+      canvas
+        .getContext("webgl2")
+        ?.getExtension("WEBGL_lose_context")
+        ?.loseContext(),
+    );
 for (let elapsed = 0; elapsed < duration; elapsed += 10) {
   await page.waitForTimeout(Math.min(10, duration - elapsed) * 1000);
   await page.evaluate(() => {
@@ -121,6 +135,8 @@ const measured = await page.evaluate(() => {
     ext = gl?.getExtension("WEBGL_debug_renderer_info");
   return {
     ...b,
+    metrics: window.__changiBenchmark,
+    measuredAt: performance.now(),
     renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "unknown",
   };
 });
@@ -145,31 +161,34 @@ await cdp.send("HeapProfiler.collectGarbage");
 const retainedHeap = await page.evaluate(
   () => performance.memory?.usedJSHeapSize ?? null,
 );
-const mean =
-  measured.intervals.reduce((a, b) => a + b, 0) / measured.intervals.length;
-const sorted = measured.intervals.toSorted((a, b) => a - b);
+const scene = summarizeScene(measured.metrics, measured.measuredAt, count);
+if (!scene.valid)
+  errors.push(
+    "Invalid scene measurement: renderer failed, stopped, or aircraft count did not match",
+  );
 const result = {
   duration_seconds: duration,
   url: process.env.BENCH_URL ?? "http://127.0.0.1:4177/",
-  visible_aircraft: count,
+  ...scene,
+  measurement:
+    "Cesium postRender events; actual entity and geographic view counts",
   history_seconds: 300,
   displayed_trails: "selected aircraft only (product behavior)",
   viewport: "1920x1080",
   browser: browser.version(),
   renderer: measured.renderer,
-  mean_fps: 1000 / mean,
-  p95_frame_ms: sorted[Math.floor(sorted.length * 0.95)],
   heap_samples: measured.heaps,
   retained_heap_after_gc: retainedHeap,
   errors,
   transport:
     "Playwright synthetic WebSocket messages, no external aircraft feed",
-  target_30fps: 1000 / mean >= 30,
+  target_30fps: scene.valid && scene.mean_fps >= 30,
 };
 fs.writeFileSync(
-  process.env.PROFILE
-    ? "../.superpowers/profile.json"
-    : "../docs/evidence/browser-performance.json",
+  process.env.BENCH_OUTPUT ??
+    (process.env.PROFILE
+      ? "../.superpowers/profile.json"
+      : "../docs/evidence/browser-performance.json"),
   JSON.stringify(result, null, 2) + "\n",
 );
 await page.screenshot({ path: "../docs/evidence/benchmark-100-aircraft.png" });

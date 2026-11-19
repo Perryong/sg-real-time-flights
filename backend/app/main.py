@@ -38,9 +38,9 @@ def create_app(settings=None, provider=None, clock=time.time):
     @app.get('/api/health')
     def health(): return {'ok':True,'schema_version':1,'version':'0.1.0'}
     @app.get('/api/status')
-    def status(): return app.state.feed.status()
+    async def status(): return app.state.feed.status()
     @app.get('/api/aircraft')
-    def aircraft(): return app.state.feed.snapshot()
+    async def aircraft(): return app.state.feed.snapshot()
     @app.get('/api/airport')
     def airport(): return load_airport()
     @app.get('/api/fixtures/{name}')

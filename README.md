@@ -13,7 +13,7 @@ Tested on macOS arm64 with **Node 26.13.0 / npm 11.20.0 / Python 3.13.14**. Runt
 ```sh
 python3.13 -m venv .venv
 .venv/bin/python -m pip install -r backend/requirements.lock
-npm --prefix frontend ci
+(cd frontend && npm ci)
 ./scripts/dev.sh
 ```
 

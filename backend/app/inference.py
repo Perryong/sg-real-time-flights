@@ -20,6 +20,15 @@ def infer_phase(history, runways, now, previous=None, config=None):
     if len({o.id for o in history})!=1 or len({o.session_id for o in history})!=1: return unknown
     if any(not 0<b-a<=cfg.gap_seconds for a,b in zip(times,times[1:])): return unknown
 
+    context=previous._event_context
+    identity,session=history[-1].id,history[-1].session_id
+    if context and (context[1:3]!=(identity,session) or not 0<=now-context[3]<=60):
+        context=None
+    context_phase=context[0] if context else previous.phase
+    # External/legacy previous estimates must also have recent evidence.
+    if not context and previous.evidence_times and not 0<=now-max(previous.evidence_times)<=60:
+        context_phase='unknown'
+
     def evaluate(h):
         o=h[-1]; recent=h[-3:]
         if len(h)<3 or h[-1].position_time-h[-3].position_time<cfg.trend_seconds: return 'unknown',[],['Trend needs three observations over ten seconds']
@@ -38,13 +47,13 @@ def infer_phase(history, runways, now, previous=None, config=None):
         speeds=[x.speed_mps for x in recent]
         decel=all(v is not None for v in speeds) and speeds[-1]<speeds[0]-2
         accel=all(v is not None for v in speeds) and all(b>a+1 for a,b in zip(speeds,speeds[1:]))
-        approach_before=previous.phase in ('final_approach_candidate','approach_candidate','landing_candidate','go_around_candidate')
+        approach_before=context_phase in ('final_approach_candidate','approach_candidate','landing_candidate','go_around_candidate')
         if o.ground is True:
             if runway and approach_before and any(x.ground is False for x in h[-8:]) and all(x.ground is True for x in h[-2:]) and decel:
                 return 'landing_candidate',runway,['Continuous airborne-to-ground reports and deceleration near runway; event interval only']
             if all(x.ground is True for x in recent):
                 if runway and accel: return 'takeoff_roll_candidate',runway,['Repeated acceleration on a runway corridor; takeoff not confirmed']
-                if runway and previous.phase in ('landing_candidate','rollout_candidate'):
+                if runway and context_phase in ('landing_candidate','rollout_candidate'):
                     return 'rollout_candidate',runway,['Repeated ground positions near the runway after a landing candidate']
                 if runway:return 'runway_aligned_candidate',runway,['Fresh moving ground observations aligned with runway']
                 if all((x.speed_mps or 0)>.5 for x in recent):return 'taxi_candidate',[],['Repeated moving ground reports outside runway-roll evidence']
@@ -59,6 +68,13 @@ def infer_phase(history, runways, now, previous=None, config=None):
         return 'unknown',[],['Ground/air state unknown; altitude alone is insufficient']
     phase,candidates,reasons=evaluate(history)
     prior,_,_=evaluate(history[:-1])
-    if phase!=prior: return PhaseEstimate(reasons=['Awaiting a second qualifying evaluation'])
+    if phase!=prior:
+        result=PhaseEstimate(reasons=['Awaiting a second qualifying evaluation'])
+        result._event_context=context
+        return result
     if candidates: reasons.append('Runway geometry is provisional; assignment is a heuristic')
-    return PhaseEstimate(phase=phase,candidate_runways=candidates,confidence='medium' if phase!='unknown' and len(candidates)<=1 else 'low',reasons=reasons,evidence_times=times[-5:])
+    result=PhaseEstimate(phase=phase,candidate_runways=candidates,confidence='medium' if phase!='unknown' and len(candidates)<=1 else 'low',reasons=reasons,evidence_times=times[-5:])
+    if phase in ('final_approach_candidate','approach_candidate','landing_candidate'):
+        context=(phase,identity,session,times[-1])
+    result._event_context=context
+    return result

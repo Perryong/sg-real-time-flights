@@ -1,5 +1,5 @@
 from typing import Literal, Any
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 Mode = Literal['live', 'simulated', 'recorded']
 
@@ -32,6 +32,8 @@ class Observation(BaseModel):
     raw: dict[str, Any] = Field(default_factory=dict)
 
 class PhaseEstimate(BaseModel):
+    # Bounded internal event memory survives pending hysteresis, never serialized.
+    _event_context: tuple[str, str, str, float] | None = PrivateAttr(default=None)
     phase: str = 'unknown'
     candidate_runways: list[str] = Field(default_factory=list)
     confidence: Literal['low', 'medium', 'high'] = 'low'
