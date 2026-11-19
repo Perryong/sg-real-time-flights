@@ -157,3 +157,36 @@ test("live provider credit stays visible on mobile with the traffic panel closed
   await page.getByRole("button", { name: "Demo", exact: true }).click();
   await expect(page.locator(".statusbar").getByRole("link", { name: "ADSB.fi" })).toHaveCount(0);
 });
+
+for (const viewport of [{width:1440,height:800},{width:390,height:844}]) {
+test(`regional overview includes edge aircraft at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  await page.setViewportSize(viewport);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const now = Date.now() / 1000;
+  const snapshot = structuredClone(fixture.frames[0]);
+  Object.assign(snapshot, { mode: "live", scenario_time: null, server_time: now });
+  Object.assign(snapshot.status, { mode: "live", upstream_state: "healthy" });
+  snapshot.tracks = [[2.86,103.99],[-0.14,103.99],[1.36,102.49],[1.36,105.49]].map(([lat,lon],i) => {
+    const t = structuredClone(fixture.frames[0].tracks[0]);
+    t.id = `live:adsb.fi:edge${i}`;
+    t.history = [];
+    Object.assign(t.latest, {id:t.id, mode:"live", provider:"adsb.fi", provider_id:`edge${i}`, callsign:`EDGE ${i}`, lat, lon, position_time:now, receipt_time:now});
+    return t;
+  });
+  await page.routeWebSocket("**/ws/aircraft", ws => ws.send(JSON.stringify(snapshot)));
+  await page.addInitScript(() => { (window as any).__changiBenchmark = {frames:[],failed:false,ready:false,aircraftCount:0,visibleCount:0,lastRender:0}; });
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(() => (window as any).__changiBenchmark.aircraftCount)).toBe(4);
+  await expect.poll(() => page.evaluate(() => (window as any).__changiBenchmark.visibleCount)).toBe(4);
+  await expect(page.locator(".region-badge")).toHaveText("100 NM");
+  const before3D = await page.evaluate(() => (window as any).__changiBenchmark.lastRender);
+  await page.getByRole("button",{name:"3D",exact:true}).click();
+  await expect(page.getByRole("button",{name:"2D",exact:true})).toBeVisible();
+  await page.waitForFunction(time => (window as any).__changiBenchmark.lastRender > time, before3D);
+  const beforeOverview = await page.evaluate(() => (window as any).__changiBenchmark.lastRender);
+  await page.getByRole("button",{name:"Regional overview"}).click();
+  await expect(page.getByRole("button",{name:"3D",exact:true})).toBeVisible();
+  await page.waitForFunction(time => (window as any).__changiBenchmark.lastRender > time, beforeOverview);
+  await expect.poll(() => page.evaluate(() => (window as any).__changiBenchmark.visibleCount)).toBe(4);
+});
+}

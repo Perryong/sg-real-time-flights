@@ -1,3 +1,4 @@
+import { COVERAGE_RADIUS_NM } from "../data/coverage";
 import {
   Plane,
   ChevronRight,
@@ -180,7 +181,7 @@ export default function TrafficList(p: Props) {
             {p.unavailable ? " · unavailable" : " · observations"}
           </span>
         ) : "Synthetic scenario · not real flights"}
-        <span>25 NM</span>
+        <span>{COVERAGE_RADIUS_NM} NM</span>
       </div>
     </section>
   );

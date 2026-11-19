@@ -35,12 +35,18 @@ async def test_http_date_retry_after():
 @pytest.mark.asyncio
 async def test_changi_v3_request_preserves_source_times_and_identity():
     def respond(request):
-        assert str(request.url) == 'https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/25'
+        assert str(request.url) == 'https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/100'
         assert 'authorization' not in request.headers
         return httpx.Response(200, json={'now':1700000000000, 'msg':'No error', 'ac':[
-            {'hex':'ABC123','lat':1.35,'lon':104,'seen_pos':2.5,'seen':1,'alt_baro':1000,'gs':0}]})
+            {'hex':'ABC123','lat':1.35,'lon':104,'seen_pos':2.5,'seen':1,'alt_baro':1000,'gs':0},
+            {'hex':'DEF456','lat':2.8,'lon':104,'seen_pos':1,'alt_baro':12000},
+            {'hex':'FED321','lat':1.36,'lon':103.99,'seen_pos':0,'alt_baro':'ground'}]})
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
         result=await AdsbFiProvider(client,clock=lambda:1700000001).fetch()
+    assert len(result.observations) == 3
+    assert result.observations[1].callsign is None
+    assert result.observations[1].lat == 2.8
+    assert result.observations[2].ground is True
     o=result.observations[0]
     assert o.id == 'live:adsb.fi:abc123'
     assert o.provider == 'adsb.fi'

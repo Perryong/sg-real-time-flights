@@ -25,3 +25,9 @@ One unauthenticated request to the configured Airplanes.live Changi endpoint ret
 A separate one-request evaluation of the documented ADSB.fi public geographic endpoint returned **HTTP 200 and 13 positioned aircraft** within 25 NM of Changi at approximately 17:30 SGT. Response `now=1795087800002` was milliseconds; converting to seconds places it about 1.8 seconds before receipt. Only field names, counts and response timing were examined; no aircraft records were saved. This is evidence of one successful query, not sustained coverage or classification accuracy.
 
 At the time of this earlier check, ADSB.fi was not integrated or enabled; that decision is superseded by the approval above. See [the concrete proposal](../superpowers/specs/2026-11-19-live-provider-proposal.md).
+
+## Wider Singapore vicinity — 100 NM
+
+The user requested more complete vicinity coverage after the initial 25 NM release. One 100 NM ADSB.fi response at 23:39 SGT contained 20 positioned aircraft: 10 within 25 NM, 14 within 50 NM, and 20 within 100 NM (counts calculated from that same snapshot). No row reported ground state. This demonstrates the narrower query excluding reported nearby aircraft, not complete receiver coverage.
+
+The fixed query now ends in `/dist/100`. Polling remains shared at ten seconds. No callsign, airline or ground-state filter is applied during ingestion; every valid positioned record is accepted. Frontend All aircraft includes those records until they become lost under the existing freshness rules. Aircraft without reported positions cannot be placed; missing ground aircraft are not invented. A later live browser check showed 20 tracked aircraft and all 20 inside the regional view.

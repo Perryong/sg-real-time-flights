@@ -1,6 +1,8 @@
+import { COVERAGE_RADIUS_NM, REGION_SCALE } from "../data/coverage";
 import { useEffect, useRef, useState } from "react";
 import {
   Viewer,
+  Rectangle,
   Cartesian3,
   Color,
   UrlTemplateImageryProvider,
@@ -17,6 +19,14 @@ import { addAirport } from "./airport";
 import { AircraftLayer } from "./aircraft";
 import type {} from "./performance";
 import { DarkMapProvider } from "./imagery";
+// Fit geographic bounds through Cesium's camera API so the shorter screen
+// dimension contains the region in both widescreen and portrait layouts.
+const regionLatSpan = COVERAGE_RADIUS_NM / 60 * 1.08;
+const regionLonSpan = regionLatSpan / Math.cos(1.3644 * Math.PI / 180);
+const regionalExtent = Rectangle.fromDegrees(
+  103.9915 - regionLonSpan, 1.3644 - regionLatSpan,
+  103.9915 + regionLonSpan, 1.3644 + regionLatSpan,
+);
 export type CameraAction = {
   kind: "overview" | "north" | "in" | "out" | "runway";
   id?: string;
@@ -95,7 +105,7 @@ export default function MapScene(props: Props) {
       viewer.imageryLayers.add(new ImageryLayer(imagery, { brightness: 0.8 }));
       viewer.imageryLayers.add(new ImageryLayer(dayImagery, { show: false }));
       viewer.camera.setView({
-        destination: Cartesian3.fromDegrees(103.96, 1.36, 125000),
+        destination: regionalExtent,
         orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       });
       layer.current = new AircraftLayer(viewer, () => latest.current.getNow());
@@ -274,11 +284,9 @@ export default function MapScene(props: Props) {
     v.trackedEntity = undefined;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     v.camera.flyTo({
-      destination: Cartesian3.fromDegrees(
-        103.96,
-        props.view === "3d" ? 1.08 : 1.36,
-        props.view === "3d" ? 43000 : 125000,
-      ),
+      destination: props.view === "3d"
+        ? Cartesian3.fromDegrees(103.96, 1.36 - 0.28 * REGION_SCALE, 43000 * REGION_SCALE)
+        : regionalExtent,
       orientation: {
         heading: 0,
         pitch: props.view === "3d" ? CMath.toRadians(-48) : -Math.PI / 2,
@@ -328,7 +336,7 @@ export default function MapScene(props: Props) {
       return;
     }
     v.camera.flyTo({
-      destination: Cartesian3.fromDegrees(103.96, 1.36, 125000),
+      destination: regionalExtent,
       orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       duration,
     });

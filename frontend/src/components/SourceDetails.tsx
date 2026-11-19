@@ -1,3 +1,4 @@
+import { COVERAGE_RADIUS_NM } from "../data/coverage";
 import { useEffect, useRef } from "react";
 import { X, ExternalLink, Layers3 } from "lucide-react";
 import type { Airport, FeedStatus } from "../data/types";
@@ -97,8 +98,12 @@ export default function SourceDetails({
           </dl>
           <p>
             Live observations are provided by ADSB.fi for personal, non-commercial
-            use. Coverage depends on available receivers, particularly on the
-            ground. Live failures never enable demo traffic.
+            use. The search covers {COVERAGE_RADIUS_NM} nautical miles around Changi,
+            including Singapore and nearby Malaysian and Indonesian airspace.
+            All aircraft with usable reported positions are included, regardless
+            of airline or callsign. This is not a complete aircraft census:
+            coverage depends on receivers, particularly on the ground.
+            Live failures never enable demo traffic.
           </p>
           <a href="https://adsb.fi/" target="_blank" rel="noreferrer">
             ADSB.fi <ExternalLink size={12} />

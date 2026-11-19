@@ -16,7 +16,7 @@ class ProviderError(Exception):
         super().__init__(code)
 
 class AdsbFiProvider:
-    URL = 'https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/25'
+    URL = 'https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/100'
     def __init__(self, client: httpx.AsyncClient, clock=time.time):
         self.client, self.clock = client, clock
 

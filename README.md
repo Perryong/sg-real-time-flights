@@ -62,7 +62,7 @@ ADSBFI_PERSONAL_USE=true
 POLL_SECONDS=10
 ```
 
-The fixed query is `https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/25`. One shared poller serves all browser clients with a five-second timeout, minimum ten-second polling, bounded retry/backoff, `Retry-After` handling, and an automatic pause for 401/403. No automatic provider fallback or arbitrary upstream URL proxy exists. The former Airplanes.live flags are no longer used.
+The fixed query is `https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/100`. The 100 NM (185.2 km) radius includes Singapore and surrounding Malaysian/Indonesian airspace. All usable reported aircraft positions are accepted; unknown callsigns and ground aircraft are not filtered out. One shared poller serves all browser clients with a five-second timeout, minimum ten-second polling, bounded retry/backoff, `Retry-After` handling, and an automatic pause for 401/403. No automatic provider fallback or arbitrary upstream URL proxy exists. The former Airplanes.live flags are no longer used.
 
 ADSB.fi v3 `now` is converted explicitly from milliseconds to UTC seconds. `seen_pos`/`seen` are ages in seconds; missing or invalid timing stays unknown. Altitudes retain their reported references. Live identities use `live:adsb.fi:<id>`; synthetic identities remain separate. Observations are held only in bounded process memory, not written to an aircraft archive. Receiver coverage varies, especially on airport surfaces.
 

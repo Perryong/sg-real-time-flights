@@ -1,3 +1,4 @@
+import { COVERAGE_RADIUS_NM } from "./data/coverage";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   Radar,
@@ -270,7 +271,7 @@ export default function App() {
             <span>SINGAPORE</span>
             <span className="slash">/</span>
             <strong>CHANGI</strong>
-            <span className="region-badge">25 NM</span>
+            <span className="region-badge">{COVERAGE_RADIUS_NM} NM</span>
           </div>
           <div className="mode-switch" aria-label="Data mode">
             <button

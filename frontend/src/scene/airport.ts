@@ -1,3 +1,4 @@
+import { COVERAGE_RADIUS_NM } from "../data/coverage";
 import {
   Cartesian3,
   Color,
@@ -109,8 +110,8 @@ export function addAirport(viewer: Viewer, airport: Airport) {
   const ring = Array.from({ length: 129 }, (_, i) => {
     const a = (i / 128) * Math.PI * 2;
     return Cartesian3.fromDegrees(
-      103.9915 + Math.cos(a) * 0.416,
-      1.3644 + Math.sin(a) * 0.416,
+      103.9915 + Math.cos(a) * (COVERAGE_RADIUS_NM / 60) / Math.cos(1.3644 * Math.PI / 180),
+      1.3644 + Math.sin(a) * (COVERAGE_RADIUS_NM / 60),
       20,
     );
   });

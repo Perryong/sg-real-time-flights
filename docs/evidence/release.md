@@ -6,7 +6,7 @@ The personal local tracker now uses ADSB.fi live observations in the existing Ce
 
 - Python unit/integration suite: 54 passing.
 - Frontend unit/component suite: 24 passing; typecheck and production build pass.
-- Chromium browser suite: 9 passing after ADSB.fi integration (about one minute).
+- Chromium browser suite: 11 passing after the Singapore coverage expansion (about one minute).
 - Five-minute shared-service test: 100 synthetic aircraft, ten ASGI clients, 60 shared polls; p95 receipt-to-client 0.366 s. This measures an in-process ASGI transport, not deployed network latency.
 - Two-hour scenario-time backend soak accelerated into 40.34 seconds: bounded identities/history, final-hour memory ratio 1.0634. This is not a two-hour wall-clock or browser soak.
 - Five-minute production scene test: **59.47 rendered FPS**, p95 frame interval 18.4 ms, 17,848 actual Cesium frames, 100 entities / 100 aircraft within the geographic view at 1920×1080. Installed Chrome 157.0.8103.79 used ANGLE Metal on Apple M5 Pro (24 GB RAM). Five-minute histories were stored, with the selected aircraft's trail displayed. No page errors; retained JS heap after forced GC was 54.3 MB. This meets the 30-FPS target on this configuration, not on all devices. Routine verification and the backend benchmark ran concurrently for part of the measurement.
@@ -62,3 +62,11 @@ A fresh independent reviewer found no critical or important issues. The one mino
 TDD evidence: new provider/config tests first failed on the old URL, seconds-based time interpretation, ignored error message and old access gate; attribution tests failed on missing links. The mobile credit regression also failed before the persistent live credit was added. Final totals: 54 backend + 24 frontend + 9 browser checks. Existing Cesium bundle-size warning remains; build succeeds.
 
 The updated source ZIP was extracted to a temporary directory and passed 54 backend tests, 24 frontend tests and a production build using the existing locked dependencies. This was an unpack/build regression check, not a second clean dependency installation. Live polling was disabled in that verification environment; the personal tracker remains running separately. Archive contents and CRC were rechecked after documentation updates.
+
+## Singapore vicinity expansion
+
+The fixed ADSB.fi query and displayed coverage now extend 100 NM (185.2 km) around Changi. A single provider response contained 10 positioned aircraft within the original 25 NM radius and 20 within 100 NM. Live viewer verification after deployment showed 20 tracks, all within the geographic overview, with a healthy feed. No ground aircraft were reported in the comparison response; completeness still depends on source coverage.
+
+The region ring and UI labels match the larger query. Cesium fits the overhead geographic rectangle to the actual screen aspect ratio; close-up runway/follow controls remain available. Independent review caught fixed-height framing clipping edge aircraft on wide/portrait layouts. A failing widescreen regression reproduced two of four edge aircraft in view; geographic fitting passed both wide and portrait edge cases. The related transition check now observes a fresh render after switching modes.
+
+Expansion verification: 54 backend tests, 24 frontend tests, 11 browser tests, typecheck and production build pass. No unresolved review findings. The existing Cesium bundle-size advisory remains. Updated source archive contents and CRC verified.
