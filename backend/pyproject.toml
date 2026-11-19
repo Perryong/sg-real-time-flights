@@ -1,0 +1,9 @@
+[project]
+name = "changi-observatory"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["fastapi", "uvicorn[standard]", "httpx", "pydantic"]
+
+[tool.pytest.ini_options]
+pythonpath = ["../"]
+testpaths = ["tests"]

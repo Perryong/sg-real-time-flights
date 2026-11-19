@@ -1,0 +1,500 @@
+{
+  "$defs": {
+    "FeedStatus": {
+      "properties": {
+        "mode": {
+          "default": "live",
+          "enum": [
+            "live",
+            "simulated",
+            "recorded"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "upstream_state": {
+          "default": "unavailable",
+          "title": "Upstream State",
+          "type": "string"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "configuration_required",
+          "title": "Error Code"
+        },
+        "message": {
+          "default": "Airplanes.live access and usage policy require verification. No live polling enabled.",
+          "title": "Message",
+          "type": "string"
+        },
+        "last_attempt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Attempt"
+        },
+        "last_success": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Success"
+        },
+        "next_retry": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Retry"
+        },
+        "newest_position_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Newest Position Time"
+        },
+        "geometry_edition": {
+          "default": "CAAS 03 SEP 2026; current status unverified",
+          "title": "Geometry Edition",
+          "type": "string"
+        },
+        "counters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Counters",
+          "type": "object"
+        }
+      },
+      "title": "FeedStatus",
+      "type": "object"
+    },
+    "Observation": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_id": {
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "live",
+            "simulated",
+            "recorded"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "callsign": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Callsign"
+        },
+        "registration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Registration"
+        },
+        "aircraft_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aircraft Type"
+        },
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Lat",
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Lon",
+          "type": "number"
+        },
+        "alt_geom_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alt Geom M"
+        },
+        "alt_baro_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alt Baro M"
+        },
+        "ground": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ground"
+        },
+        "speed_mps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed Mps"
+        },
+        "track_deg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Track Deg"
+        },
+        "heading_deg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heading Deg"
+        },
+        "vertical_rate_mps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vertical Rate Mps"
+        },
+        "position_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position Time"
+        },
+        "provider_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Time"
+        },
+        "message_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message Time"
+        },
+        "receipt_time": {
+          "title": "Receipt Time",
+          "type": "number"
+        },
+        "timestamp_quality": {
+          "default": "unknown",
+          "enum": [
+            "derived",
+            "unknown"
+          ],
+          "title": "Timestamp Quality",
+          "type": "string"
+        },
+        "source_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Category"
+        },
+        "quality": {
+          "additionalProperties": true,
+          "title": "Quality",
+          "type": "object"
+        },
+        "raw": {
+          "additionalProperties": true,
+          "title": "Raw",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "provider_id",
+        "session_id",
+        "mode",
+        "lat",
+        "lon",
+        "receipt_time"
+      ],
+      "title": "Observation",
+      "type": "object"
+    },
+    "PhaseEstimate": {
+      "properties": {
+        "phase": {
+          "default": "unknown",
+          "title": "Phase",
+          "type": "string"
+        },
+        "candidate_runways": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Candidate Runways",
+          "type": "array"
+        },
+        "confidence": {
+          "default": "low",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "evidence_times": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Evidence Times",
+          "type": "array"
+        },
+        "rule_version": {
+          "default": "1.0",
+          "title": "Rule Version",
+          "type": "string"
+        }
+      },
+      "title": "PhaseEstimate",
+      "type": "object"
+    },
+    "Track": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "latest": {
+          "$ref": "#/$defs/Observation"
+        },
+        "history": {
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "title": "History",
+          "type": "array"
+        },
+        "phase": {
+          "$ref": "#/$defs/PhaseEstimate"
+        }
+      },
+      "required": [
+        "id",
+        "session_id",
+        "latest",
+        "history"
+      ],
+      "title": "Track",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "type": {
+      "const": "snapshot",
+      "default": "snapshot",
+      "title": "Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "epoch": {
+      "title": "Epoch",
+      "type": "string"
+    },
+    "sequence": {
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "mode": {
+      "enum": [
+        "live",
+        "simulated",
+        "recorded"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "server_time": {
+      "title": "Server Time",
+      "type": "number"
+    },
+    "scenario_time": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scenario Time"
+    },
+    "status": {
+      "$ref": "#/$defs/FeedStatus"
+    },
+    "tracks": {
+      "items": {
+        "$ref": "#/$defs/Track"
+      },
+      "title": "Tracks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "epoch",
+    "sequence",
+    "mode",
+    "server_time",
+    "status",
+    "tracks"
+  ],
+  "title": "Snapshot",
+  "type": "object"
+}
