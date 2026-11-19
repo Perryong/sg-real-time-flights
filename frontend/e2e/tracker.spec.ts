@@ -6,6 +6,10 @@ const fixture = JSON.parse(
 test("live unavailable never invents aircraft; explicit demo is isolated and searchable", async ({
   page,
 }) => {
+  const unavailable = structuredClone(fixture.frames[0]);
+  Object.assign(unavailable, { mode: "live", scenario_time: null, server_time: Date.now() / 1000, tracks: [] });
+  Object.assign(unavailable.status, { mode: "live", upstream_state: "unavailable", error_code: "503", last_success: null });
+  await page.routeWebSocket("**/ws/aircraft", ws => ws.send(JSON.stringify(unavailable)));
   await page.goto("/");
   await expect(
     page.getByText("LIVE DATA UNAVAILABLE", { exact: true }),
@@ -72,11 +76,11 @@ test("heartbeat cannot renew a lost position or keep following it", async ({
   f.server_time = now;
   f.scenario_time = null;
   f.tracks = f.tracks.slice(0, 1).map((t: any) => {
-    t.id = "live:airplanes.live:abc";
+    t.id = "live:adsb.fi:abc";
     for (const o of [...t.history, t.latest]) {
       o.id = t.id;
       o.mode = "live";
-      o.provider = "airplanes.live";
+      o.provider = "adsb.fi";
       o.position_time = now;
       o.receipt_time = now;
     }
@@ -144,4 +148,12 @@ test("mobile controls stay inside viewport and selection opens readable details"
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "../docs/evidence/mobile-details.png" });
+});
+
+test("live provider credit stays visible on mobile with the traffic panel closed", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.locator(".statusbar").getByRole("link", { name: "ADSB.fi" })).toBeVisible();
+  await page.getByRole("button", { name: "Demo", exact: true }).click();
+  await expect(page.locator(".statusbar").getByRole("link", { name: "ADSB.fi" })).toHaveCount(0);
 });

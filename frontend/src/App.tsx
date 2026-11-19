@@ -506,6 +506,9 @@ export default function App() {
       </main>
       <footer className="statusbar">
         <div>
+          {feed.mode === "live" && (
+            <a href="https://adsb.fi/" target="_blank" rel="noreferrer">ADSB.fi</a>
+          )}
           <span
             className={`status-dot ${feed.mode !== "live" ? "demo" : upstream?.upstream_state === "healthy" ? "healthy" : "warning"}`}
           />

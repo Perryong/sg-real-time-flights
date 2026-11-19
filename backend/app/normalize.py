@@ -25,7 +25,7 @@ def normalize_record(raw: dict, provider_time: float | None, receipt_time: float
         value = number(raw.get(field))
         return value if value is not None and 0 <= value <= 360 else None
     position_time = event_time('seen_pos')
-    provider = 'airplanes.live' if mode == 'live' else 'fixture'
+    provider = 'adsb.fi' if mode == 'live' else 'fixture'
     ident = ident.lower()
     # Whitelist raw fields; nonfinite JSON numbers cannot cross the wire.
     raw_values = {k: (v if not isinstance(v, float) or math.isfinite(v) else None) for k, v in raw.items()

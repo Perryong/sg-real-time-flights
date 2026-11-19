@@ -30,7 +30,7 @@ class FeedService:
         timestamps=[t.latest.position_time for t in tracks if t.latest.position_time is not None]
         return FeedStatus(upstream_state=state,error_code=self.error,
             message=('Live observations available' if state=='healthy' else
-                'Airplanes.live access and usage policy require verification. No live polling enabled.' if self.error=='configuration_required' else
+                'ADSB.fi live polling is disabled. Enable live mode for personal, non-commercial use in the backend configuration.' if self.error=='configuration_required' else
                 'Provider access denied; polling paused. Review configuration and restart.' if self.paused else
                 'Feed interrupted. Positions retain their original timestamps.'),
             last_attempt=self.last_attempt,last_success=self.last_success,next_retry=self.next_retry,

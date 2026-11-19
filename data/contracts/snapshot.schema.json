@@ -30,7 +30,7 @@
           "title": "Error Code"
         },
         "message": {
-          "default": "Airplanes.live access and usage policy require verification. No live polling enabled.",
+          "default": "ADSB.fi live polling is disabled. Enable live mode for personal, non-commercial use in the backend configuration.",
           "title": "Message",
           "type": "string"
         },

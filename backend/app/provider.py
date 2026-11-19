@@ -15,15 +15,15 @@ class ProviderError(Exception):
         self.code, self.pause, self.retry_after = code, pause, retry_after
         super().__init__(code)
 
-class AirplanesProvider:
-    URL = 'https://api.airplanes.live/v2/point/1.3644/103.9915/25'
-    def __init__(self, client: httpx.AsyncClient, clock=time.time, now_units='seconds', token=''):
-        self.client, self.clock, self.now_units, self.token = client, clock, now_units, token
+class AdsbFiProvider:
+    URL = 'https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/25'
+    def __init__(self, client: httpx.AsyncClient, clock=time.time):
+        self.client, self.clock = client, clock
 
     async def fetch(self) -> ProviderResult:
         try:
             async with self.client.stream('GET', self.URL, timeout=5,
-                    headers={'Authorization':f'Bearer {self.token}'} if self.token else {}) as response:
+                    headers={'Accept':'application/json'}) as response:
                 if response.status_code != 200:
                     retry = None
                     if response.status_code == 429:
@@ -44,8 +44,11 @@ class AirplanesProvider:
             raise ProviderError('network_or_json') from error
         if not isinstance(payload,dict) or not isinstance(payload.get('ac'),list) or len(payload['ac'])>10000:
             raise ProviderError('invalid_schema')
+        if payload.get('msg', 'No error') != 'No error':
+            raise ProviderError('provider_error')
         now=number(payload.get('now'))
-        if now is not None and self.now_units=='milliseconds': now/=1000
+        # ADSB.fi v3 response generation time is milliseconds; seen/seen_pos are seconds.
+        if now is not None: now/=1000
         receipt=self.clock()
         observations=[]; invalid=0
         for raw in payload['ac']:

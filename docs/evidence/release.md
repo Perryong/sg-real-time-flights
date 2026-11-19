@@ -1,12 +1,12 @@
 # Release evidence — 19 November 2026
 
-This is a runnable local geographic tracker preview. Live observations and authoritative geometry accuracy are not certified. No public deployment was made. The initial preview used no external aircraft queries; a subsequent provider-access check is recorded in provider-contract.md (one refused Airplanes.live request and one successful ADSB.fi evaluation query). Continuous live polling is still disabled pending provider selection.
+The personal local tracker now uses ADSB.fi live observations in the existing Cesium view. The user approved this provider and personal, non-commercial use. No public deployment was made. The live browser check showed 10 tracked aircraft, nine rendered in view, healthy WebSocket updates, valid source times, 3D toggle, selection and follow/exit with no page errors. A later backend check recorded 14 shared polls, 11 tracks and up to 14 history samples. These short checks do not establish sustained or complete surface coverage. Provider evidence is in `provider-contract.md`.
 
 ## Current verification
 
-- Python unit/integration suite: 45 passing.
-- Frontend unit/component suite: 21 passing; typecheck and production build pass.
-- Chromium browser suite: 8 passing after review fixes (46.3 seconds).
+- Python unit/integration suite: 54 passing.
+- Frontend unit/component suite: 24 passing; typecheck and production build pass.
+- Chromium browser suite: 9 passing after ADSB.fi integration (about one minute).
 - Five-minute shared-service test: 100 synthetic aircraft, ten ASGI clients, 60 shared polls; p95 receipt-to-client 0.366 s. This measures an in-process ASGI transport, not deployed network latency.
 - Two-hour scenario-time backend soak accelerated into 40.34 seconds: bounded identities/history, final-hour memory ratio 1.0634. This is not a two-hour wall-clock or browser soak.
 - Five-minute production scene test: **59.47 rendered FPS**, p95 frame interval 18.4 ms, 17,848 actual Cesium frames, 100 entities / 100 aircraft within the geographic view at 1920×1080. Installed Chrome 157.0.8103.79 used ANGLE Metal on Apple M5 Pro (24 GB RAM). Five-minute histories were stored, with the selected aircraft's trail displayed. No page errors; retained JS heap after forced GC was 54.3 MB. This meets the 30-FPS target on this configuration, not on all devices. Routine verification and the backend benchmark ran concurrently for part of the measurement.
@@ -18,7 +18,7 @@ This is a runnable local geographic tracker preview. Live observations and autho
 | Gate | Status | Evidence / limit |
 | --- | --- | --- |
 | AC-01 reproducible install/build | Pass on macOS arm64 | Separate clean environment installed lockfiles, 45 backend + 21 frontend tests, production build; `clean-install.json` |
-| AC-02 authorized live feed | Unmet | `provider-contract.md`; access, units, terms and Singapore coverage unverified |
+| AC-02 authorized live feed | Personal local integration verified; coverage partial | Public ADSB.fi terms checked, user approved personal use, actual response/stream/viewer verified; complete Changi surface coverage remains unverified |
 | AC-03 authoritative thresholds | Unmet | `geometry.md`; licensed community geometry is provisional, not a source-precision exemption |
 | AC-04 observation details | Pass on fixtures | Component tests; original date/time, age, altitude reference, provider, display method |
 | AC-05 interpolation | Pass | Clock-controlled tests; 21-second gaps rejected |
@@ -30,13 +30,13 @@ This is a runnable local geographic tracker preview. Live observations and autho
 | AC-11 mode isolation/playback | Partial | Live/demo flows and scenario clock tests pass; recorded fixture contract exists, no public recording selector |
 | AC-12 asset/height fallback | Partial | Model/WebGL failure tests; ellipsoid fallback. Terrain-provider failure is not exercised because no external terrain is configured |
 | AC-13 performance/soak | Partial | 59.47 actual FPS and 0.366 s p95 ASGI delivery pass on measured configuration; accelerated scenario soak passes; two-hour wall-clock browser soak not run |
-| AC-14 secrets/attribution/origins | Pass within local release scope | Archive allowlist/CRC and private-key-pattern scan; no .env/dependency cache; backend-only token, origin and escaping tests; licenses included |
+| AC-14 secrets/attribution/origins | Pass within local release scope | Archive allowlist/CRC and private-key-pattern scan; no .env/dependency cache; no provider credentials required, origin and escaping tests; licenses included |
 | AC-15 source archive | Pass | Clean unpack/install/build/API/browser flow, root goal.md present; temporary services stopped |
 
 ## Scope decisions
 
 - Started an isolated feature branch in the empty project, rather than a second worktree; no existing work was displaced.
-- A verified-access flag and explicit timestamp units represent the single provider contract. The operator must verify both before enabling polling; this does not establish provider authorization by itself.
+- ADSB.fi replaces the unused Airplanes.live adapter. Local activation requires both LIVE_ENABLED and ADSBFI_PERSONAL_USE; v3 milliseconds are fixed in the adapter. No provider framework or automatic fallback was added.
 - CAAS redistribution permission is unresolved. Distributed geometry comes from OSM and OurAirports with their licenses; authoritative precision remains unmet, and inference remains provisional.
 - Community import consistency is tested to its own precision. The authoritative 2 m / 5 m / 0.1° targets are not waived or silently loosened.
 - Demo history is 60 seconds to limit fixture size; live history remains 300 seconds. Demo trails are shorter.
@@ -47,10 +47,18 @@ This is a runnable local geographic tracker preview. Live observations and autho
 
 ## Review and clean installation
 
-Independent review found six important issues; all were fixed with failing-then-passing regressions. Three minor issues remain explicitly deferred in [review.md](review.md). The final suite is 45 Python tests, 21 frontend tests and 8 browser tests. Typecheck and production build pass.
+Independent review found six important issues; all were fixed with failing-then-passing regressions. Three minor issues remain explicitly deferred in [review.md](review.md). The original preview suite was 45 Python tests, 21 frontend tests and 8 browser tests. ADSB.fi verification above supersedes those counts. Typecheck and production build pass.
 
 The source archive was extracted to a separate temporary directory. Python dependencies were installed into a new virtual environment and npm ci succeeded from the frontend directory. The extracted application passed its tests/build, all four API checks, explicit demo selection, pause and mode-isolation checks with map imagery blocked. Temporary ports 8027/4187 and corresponding temporary proxy/origin settings avoided the running app. No dependency versions were changed. After final evidence-only updates, packaging rechecks the archive contents and CRC.
 
 ## Remaining validation
 
-The preview must not be described as a verified realtime feed, authoritative airport digital twin, universally performant application, or a two-hour stability-certified release. The 30-FPS result applies only to the measured Chrome/M5 Pro configuration. Complete provider/geometry gates, other-browser checks and wall-clock stability measurements before broader release claims.
+The local live integration is verified by a short smoke check, not a long-term feed SLA, authoritative airport digital twin, universally performant application, or two-hour stability-certified release. The 30-FPS result applies only to the measured Chrome/M5 Pro configuration. Complete provider/geometry gates, other-browser checks and wall-clock stability measurements before broader release claims.
+
+## ADSB.fi integration review
+
+A fresh independent reviewer found no critical or important issues. The one minor generated-schema attribution mismatch was corrected using `scripts/export_contract.py`. This is a generated contract update, not a behavior change. Fixtures still pass the deterministic regeneration check. No WorldMonitor code was imported. Live provider results were inspected in memory; no raw aircraft responses or private configuration enter the source ZIP.
+
+TDD evidence: new provider/config tests first failed on the old URL, seconds-based time interpretation, ignored error message and old access gate; attribution tests failed on missing links. The mobile credit regression also failed before the persistent live credit was added. Final totals: 54 backend + 24 frontend + 9 browser checks. Existing Cesium bundle-size warning remains; build succeeds.
+
+The updated source ZIP was extracted to a temporary directory and passed 54 backend tests, 24 frontend tests and a production build using the existing locked dependencies. This was an unpack/build regression check, not a second clean dependency installation. Live polling was disabled in that verification environment; the personal tracker remains running separately. Archive contents and CRC were rechecked after documentation updates.

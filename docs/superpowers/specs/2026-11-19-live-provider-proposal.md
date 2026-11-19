@@ -1,4 +1,6 @@
-# Proposed live-provider switch — pending user decision
+# Live-provider switch — approved for personal use
+
+Approved by the user: proceed with ADSB.fi for the personal tracker and keep Cesium 3D. Implement directly in the existing tracker; do not import WorldMonitor code. Replace the unused Airplanes.live adapter rather than introducing a provider framework. Local `.env` enables live polling with explicit personal-use acknowledgement; distributed defaults stay off.
 
 The selected Airplanes.live API refuses the unauthenticated Changi query with HTTP 403. The user has no provider account/access yet.
 

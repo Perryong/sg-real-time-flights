@@ -52,7 +52,7 @@ class FeedStatus(BaseModel):
     mode: Mode = 'live'
     upstream_state: str = 'unavailable'
     error_code: str | None = 'configuration_required'
-    message: str = 'Airplanes.live access and usage policy require verification. No live polling enabled.'
+    message: str = 'ADSB.fi live polling is disabled. Enable live mode for personal, non-commercial use in the backend configuration.'
     last_attempt: float | None = None
     last_success: float | None = None
     next_retry: float | None = None

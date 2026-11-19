@@ -161,7 +161,7 @@ export default function TrafficList(p: Props) {
               {p.query
                 ? "Try another callsign or identifier."
                 : p.unavailable
-                  ? "Live access has not been verified. The map is ready; no synthetic aircraft are shown in live mode."
+                  ? "The live feed is unavailable. Check Sources & accuracy for its status, or explore the separate demo."
                   : "No aircraft match this filter in the current snapshot."}
             </p>
             {p.unavailable && !p.query && (
@@ -174,11 +174,12 @@ export default function TrafficList(p: Props) {
       </div>
       <div className="list-footer">
         <span className="tiny-dot" />{" "}
-        {p.mode === "live"
-          ? p.unavailable
-            ? "Airplanes.live · unavailable"
-            : "Airplanes.live · observations"
-          : "Synthetic scenario · not real flights"}
+        {p.mode === "live" ? (
+          <span>
+            <a href="https://adsb.fi/" target="_blank" rel="noreferrer">ADSB.fi</a>
+            {p.unavailable ? " · unavailable" : " · observations"}
+          </span>
+        ) : "Synthetic scenario · not real flights"}
         <span>25 NM</span>
       </div>
     </section>

@@ -8,7 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from .config import Settings, ROOT
-from .provider import AirplanesProvider
+from .provider import AdsbFiProvider
 from .service import FeedService
 
 def load_airport():
@@ -25,7 +25,7 @@ def create_app(settings=None, provider=None, clock=time.time):
     @asynccontextmanager
     async def lifespan(app):
         async with httpx.AsyncClient(follow_redirects=False) as client:
-            feed=FeedService(settings,provider or AirplanesProvider(client,clock,settings.now_units,settings.token),clock)
+            feed=FeedService(settings,provider or AdsbFiProvider(client,clock),clock)
             app.state.feed=feed
             task=asyncio.create_task(feed.run())
             try: yield

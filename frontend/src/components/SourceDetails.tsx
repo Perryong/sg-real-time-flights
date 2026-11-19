@@ -96,10 +96,13 @@ export default function SourceDetails({
             </div>
           </dl>
           <p>
-            Airplanes.live is the selected live provider. Access, usage terms
-            and local coverage have not yet been verified. Live failures never
-            enable demo traffic.
+            Live observations are provided by ADSB.fi for personal, non-commercial
+            use. Coverage depends on available receivers, particularly on the
+            ground. Live failures never enable demo traffic.
           </p>
+          <a href="https://adsb.fi/" target="_blank" rel="noreferrer">
+            ADSB.fi <ExternalLink size={12} />
+          </a>
         </div>
         <div className="source-card">
           <h3>Airport & map geometry</h3>

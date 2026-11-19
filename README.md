@@ -2,7 +2,7 @@
 
 A geographic Singapore Changi flight tracker built with React, TypeScript, CesiumJS and FastAPI. Start with a north-up regional map, tilt into 3D, inspect aircraft, follow tracks, and explore sourced airport geometry.
 
-**Release status: runnable local preview, not a verified live digital twin.** Live aircraft access is disabled by default because Airplanes.live authorization, usage terms, timestamp semantics and Singapore coverage remain unverified. The initial live map intentionally has no invented traffic. Choose **Demo** to explore 16 explicitly labeled synthetic aircraft.
+**Release status: personal local tracker with ADSB.fi live observations and Cesium 3D.** The source distribution leaves live polling off until personal use is configured below. Live mode shows only received observations; **Demo** separately explores 16 explicitly labeled synthetic aircraft. Airport geometry and flight-phase estimates remain provisional.
 
 ![Synthetic geographic tracker preview](docs/evidence/overview.png)
 
@@ -22,7 +22,7 @@ Open **http://127.0.0.1:5177**. Backend: **http://127.0.0.1:8017/api/health**. T
 Alternatively, use two terminals from the project root:
 
 ```sh
-.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8017
+.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8017 --env-file .env
 npm --prefix frontend run dev
 ```
 
@@ -52,9 +52,19 @@ On mobile the aircraft panel starts collapsed so the map stays visible. Use Traf
 
 Copy `.env.example` to `.env` if configuration is needed. `scripts/dev.sh` loads it only into the backend. No provider secret belongs in a `VITE_` variable.
 
-Before setting `LIVE_ENABLED=true` and `AIRPLANES_ACCESS_VERIFIED=true`, establish the current Airplanes.live endpoint, access/authentication mechanism, permitted display/retention, request limits and exact response timestamp units. The implemented endpoint and `ac`/`now` contract are **provisional assumptions tested with synthetic responses**. `AIRPLANES_NOW_UNITS=seconds|milliseconds` is explicit. Optional bearer-token transport must be confirmed against your authorization; this project does not claim it matches an unverified provider contract.
+The user selected [ADSB.fi](https://adsb.fi/) for personal, non-commercial use. Its [public API terms](https://github.com/adsbfi/opendata) require attribution and limit requests to one per second. No account or API key is required for this geographic endpoint. Do not use this configuration for a commercial service.
 
-The configured request is fixed to `api.airplanes.live` around Changi with a provisional 25 NM radius. There is one shared poller, a five-second request timeout, default ten-second polling, bounded retry/backoff, `Retry-After` handling, and an automatic pause for 401/403. Restart after correcting access configuration. No arbitrary upstream URL proxy exists.
+For your personal tracker, set these in `.env`, then start/restart the backend:
+
+```dotenv
+LIVE_ENABLED=true
+ADSBFI_PERSONAL_USE=true
+POLL_SECONDS=10
+```
+
+The fixed query is `https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/25`. One shared poller serves all browser clients with a five-second timeout, minimum ten-second polling, bounded retry/backoff, `Retry-After` handling, and an automatic pause for 401/403. No automatic provider fallback or arbitrary upstream URL proxy exists. The former Airplanes.live flags are no longer used.
+
+ADSB.fi v3 `now` is converted explicitly from milliseconds to UTC seconds. `seen_pos`/`seen` are ages in seconds; missing or invalid timing stays unknown. Altitudes retain their reported references. Live identities use `live:adsb.fi:<id>`; synthetic identities remain separate. Observations are held only in bounded process memory, not written to an aircraft archive. Receiver coverage varies, especially on airport surfaces.
 
 ## Time and data integrity
 
@@ -117,7 +127,7 @@ Produces `dist/changi-observatory-source.zip` with source, tests, fixtures, lock
 
 ## Troubleshooting
 
-- **No live aircraft:** expected until authorized access and policy are verified. Select Demo explicitly for the synthetic walkthrough.
+- **No live aircraft:** check both personal-use flags and the Sources & accuracy panel. A healthy feed can report no aircraft; receiver coverage is not guaranteed. Demo is a separate synthetic walkthrough.
 - **Backend disconnected:** check port 8017 and browser/proxy origin settings. The app keeps aging existing positions rather than pretending a refresh occurred.
 - **Map imagery unavailable:** airport geometry and traffic controls remain available; public OSM tile service has no SLA.
 - **WebGL unavailable:** use the searchable traffic list/details; try a supported browser with hardware acceleration for the 3D map.
