@@ -1,0 +1,51 @@
+import {useCallback,useEffect,useRef,useState} from 'react';
+import type {Snapshot,Mode} from '../data/types';
+import {acceptSnapshot,isStatus,type StreamState} from '../data/stream';
+import {PlaybackController} from '../data/playback';
+
+export function useTraffic(){
+ const [mode,setMode]=useState<Mode>('live'),[snapshot,setSnapshot]=useState<Snapshot|null>(null),[transport,setTransport]=useState('connecting'),[error,setError]=useState<string|null>(null),[now,setNow]=useState(Date.now()/1000),[playing,setPlaying]=useState(true);
+ const generation=useRef(0),offset=useRef(0),playback=useRef<PlaybackController|null>(null);
+ const getNow=useCallback(()=>playback.current?.time??(Date.now()/1000+offset.current),[]);
+ useEffect(()=>{
+  let disposed=false,socket:WebSocket|undefined,reconnect:ReturnType<typeof setTimeout>|undefined,attempt=0,lastMessage=Date.now();
+  const abort=new AbortController();const myGeneration=++generation.current;
+  let connectionId=0;let state:StreamState={connectionId:0,snapshot:null};
+  setSnapshot(null);setError(null);setTransport(mode==='live'?'connecting':'loading fixture');
+  playback.current?.dispose();playback.current=null;
+  const active=()=>!disposed&&generation.current===myGeneration;
+  const connect=()=>{
+   if(!active())return;connectionId++;const id=connectionId;state={connectionId:id,snapshot:null};lastMessage=Date.now();setTransport('connecting');
+   socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws/aircraft`);
+   socket.onmessage=event=>{
+    if(!active()||id!==connectionId)return;
+    try{
+     const data=JSON.parse(event.data);
+     if(data.type==='heartbeat'&&isStatus(data.status)&&typeof data.server_time==='number'&&Number.isFinite(data.server_time)&&state.snapshot?.epoch===data.epoch){
+      lastMessage=Date.now();offset.current=data.server_time-Date.now()/1000;setTransport('connected');setSnapshot(old=>old?{...old,status:data.status}:old);return;
+     }
+     const next=acceptSnapshot(state,data,id);if(next===state)return;state=next;
+     offset.current=data.server_time-Date.now()/1000;lastMessage=Date.now();attempt=0;setError(null);setTransport('connected');setSnapshot(next.snapshot);
+    }catch{setError('Invalid feed message ignored');}
+   };
+   socket.onclose=()=>{if(!active()||id!==connectionId)return;setTransport('reconnecting');const delay=Math.min(30000,1000*2**Math.min(attempt++,5))*(.8+Math.random()*.2);reconnect=setTimeout(connect,delay);};
+   socket.onerror=()=>socket?.close();
+  };
+  if(mode==='live')connect();
+  else fetch(`/api/fixtures/${mode==='simulated'?'changi-demo':'recorded-test'}`,{signal:abort.signal}).then(r=>{if(!r.ok)throw Error('Fixture unavailable');return r.json();}).then(data=>{
+   if(!active())return;playback.current=new PlaybackController(data.frames,()=>performance.now()/1000);playback.current.play();setPlaying(true);setSnapshot(playback.current.tick());setTransport('local playback');
+  }).catch(e=>{if(active()){setError(String(e));setTransport('unavailable');}});
+  const tick=setInterval(()=>{
+   if(!active())return;
+   if(playback.current){setSnapshot(playback.current.tick());setPlaying(playback.current.playing);}
+   else if(socket&&Date.now()-lastMessage>30000&&socket.readyState===WebSocket.OPEN)socket.close();
+   setNow(getNow());
+  },250);
+  const resume=()=>{setNow(getNow());if(document.visibilityState==='visible'&&mode==='live'&&Date.now()-lastMessage>30000)socket?.close();};
+  document.addEventListener('visibilitychange',resume);
+  return()=>{disposed=true;abort.abort();clearInterval(tick);clearTimeout(reconnect);socket?.close();playback.current?.dispose();playback.current=null;document.removeEventListener('visibilitychange',resume);};
+ },[mode,getNow]);
+ const togglePlay=()=>{const p=playback.current;if(p){p.playing?p.pause():p.play();setPlaying(p.playing);setNow(getNow());}};
+ const seek=(time:number)=>{const p=playback.current;if(p){p.seek(time);setSnapshot(p.tick());setNow(p.time);}};
+ return {mode,setMode,snapshot,transport,error,now,getNow,playing,togglePlay,seek,start:playback.current?.start??0,end:playback.current?.end??0};
+}
