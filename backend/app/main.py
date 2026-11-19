@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from .config import Settings, ROOT
 from .provider import AirplanesProvider
 from .service import FeedService
@@ -32,6 +33,7 @@ def create_app(settings=None, provider=None, clock=time.time):
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError): await task
     app=FastAPI(title='Changi Observatory',lifespan=lifespan)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(CORSMiddleware,allow_origins=list(settings.origins),allow_methods=['GET'],allow_headers=['*'])
     @app.get('/api/health')
     def health(): return {'ok':True,'schema_version':1,'version':'0.1.0'}

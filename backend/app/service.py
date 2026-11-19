@@ -6,12 +6,17 @@ import uuid
 from .contracts import FeedStatus, Snapshot, PhaseEstimate
 from .provider import ProviderError
 from .store import TrackStore
+from .inference import infer_phase
+from .config import ROOT
+import json
 
 log=logging.getLogger('changi.feed')
 
 class FeedService:
     def __init__(self, settings, provider, clock=time.time):
         self.settings,self.provider,self.clock=settings,provider,clock
+        geometry=ROOT/'data/airport/runways.geojson'
+        self.runways=json.loads(geometry.read_text())['features'] if geometry.exists() else []
         self.store=TrackStore(); self.epoch=str(uuid.uuid4()); self.sequence=0
         self.last_attempt=None; self.last_success=None; self.next_retry=None
         self.error='configuration_required' if not settings.live_enabled else None
@@ -56,7 +61,11 @@ class FeedService:
             start=time.monotonic()
             try:
                 result=await self.provider.fetch()
+                before={k:t.latest.position_time for k,t in self.store.tracks.items()}
                 self.store.ingest(result.observations,self.clock())
+                for key,track in self.store.tracks.items():
+                    if track.latest.position_time != before.get(key):
+                        track.phase=infer_phase(track.history,self.runways,self.clock(),track.phase)
                 self.last_success=self.clock(); self.error='partial_data' if result.invalid else None
                 self.counters['invalid']+=result.invalid; self.failures=0
                 self.next_retry=self.clock()+self.settings.poll_seconds
