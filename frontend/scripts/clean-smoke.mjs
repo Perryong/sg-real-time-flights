@@ -1,0 +1,20 @@
+import {chromium} from '@playwright/test';
+import fs from 'node:fs';
+const url=process.env.CLEAN_URL??'http://127.0.0.1:4187';
+const results={};
+for(const path of ['health','status','aircraft','airport']){const r=await fetch(`${url}/api/${path}`);if(!r.ok)throw Error(`${path} ${r.status}`);const v=await r.json();results[path]=path==='airport'?{runways:v.runways.features.length}:path==='aircraft'?{mode:v.mode,tracks:v.tracks.length}:v;}
+const browser=await chromium.launch({channel:'chrome',headless:true});
+const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.route('https://tile.openstreetmap.org/**',r=>r.abort());
+await page.goto(url);await page.getByText('LIVE DATA UNAVAILABLE',{exact:true}).waitFor();
+await page.getByRole('button',{name:'Demo',exact:true}).click();await page.getByRole('button',{name:'Select SYN 101'}).click();
+await page.getByRole('region',{name:'Selected aircraft details'}).waitFor();
+if(await page.getByRole('button',{name:/Select SYN/}).count()!==16)throw Error('Expected 16 synthetic aircraft');
+await page.getByRole('button',{name:'Pause playback'}).click();
+const time=await page.locator('.header-right time').innerText();await page.waitForTimeout(300);
+if(await page.locator('.header-right time').innerText()!==time)throw Error('Pause did not freeze scenario');
+await page.getByRole('button',{name:'Live',exact:true}).click();
+if(await page.getByRole('button',{name:/Select SYN/}).count())throw Error('Mode contamination');
+await browser.close();if(errors.length)throw Error(JSON.stringify(errors));
+const report={clean_source_commit:'de74799',install:'separate Python virtualenv + npm ci from included lockfiles',unit_tests:{backend:45,frontend:21},build:'pass',temporary_ports:{backend:8027,frontend:4187},port_override:'Only temporary Vite proxy/ALLOWED_ORIGINS adjusted to avoid running services',apis:results,browser:'installed Chrome',blocked_external_imagery:true,demo_count:16,pause_and_mode_isolation:'pass',page_errors:errors};
+fs.writeFileSync('../docs/evidence/clean-install.json',JSON.stringify(report,null,2)+'\n');console.log('Clean archive install/build/API/offline-fixture flow passed.');

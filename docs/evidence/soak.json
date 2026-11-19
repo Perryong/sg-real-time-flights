@@ -1,495 +1,495 @@
 {
   "scenario_seconds": 7200,
-  "wall_seconds": 36.42,
+  "wall_seconds": 40.34,
   "accelerated": true,
   "aircraft": 100,
   "peak_identities": 200,
-  "final_hour_memory_ratio": 1.0070175438596491,
+  "final_hour_memory_ratio": 1.0634019399101018,
   "memory_target_pass": true,
   "samples": [
     {
       "scenario_second": 0,
-      "rss_bytes": 58687488
+      "rss_bytes": 58441728
     },
     {
       "scenario_second": 60,
-      "rss_bytes": 60211200
+      "rss_bytes": 61227008
     },
     {
       "scenario_second": 120,
-      "rss_bytes": 62701568
+      "rss_bytes": 63799296
     },
     {
       "scenario_second": 180,
-      "rss_bytes": 66142208
+      "rss_bytes": 67223552
     },
     {
       "scenario_second": 240,
-      "rss_bytes": 69615616
+      "rss_bytes": 70680576
     },
     {
       "scenario_second": 300,
-      "rss_bytes": 73121792
+      "rss_bytes": 74186752
     },
     {
       "scenario_second": 360,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 420,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 480,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 540,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 600,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 660,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 720,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 780,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 840,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 900,
-      "rss_bytes": 73252864
+      "rss_bytes": 74301440
     },
     {
       "scenario_second": 960,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1020,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1080,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1140,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1200,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1260,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1320,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1380,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1440,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1500,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1560,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1620,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1680,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1740,
-      "rss_bytes": 73285632
+      "rss_bytes": 74350592
     },
     {
       "scenario_second": 1800,
-      "rss_bytes": 73416704
+      "rss_bytes": 74498048
     },
     {
       "scenario_second": 1860,
-      "rss_bytes": 77086720
+      "rss_bytes": 78151680
     },
     {
       "scenario_second": 1920,
-      "rss_bytes": 77086720
+      "rss_bytes": 78151680
     },
     {
       "scenario_second": 1980,
-      "rss_bytes": 77086720
+      "rss_bytes": 73809920
     },
     {
       "scenario_second": 2040,
-      "rss_bytes": 77217792
+      "rss_bytes": 73809920
     },
     {
       "scenario_second": 2100,
-      "rss_bytes": 77545472
+      "rss_bytes": 74235904
     },
     {
       "scenario_second": 2160,
-      "rss_bytes": 77545472
+      "rss_bytes": 74235904
     },
     {
       "scenario_second": 2220,
-      "rss_bytes": 77545472
+      "rss_bytes": 73957376
     },
     {
       "scenario_second": 2280,
-      "rss_bytes": 77545472
+      "rss_bytes": 73875456
     },
     {
       "scenario_second": 2340,
-      "rss_bytes": 77545472
+      "rss_bytes": 73875456
     },
     {
       "scenario_second": 2400,
-      "rss_bytes": 77545472
+      "rss_bytes": 73875456
     },
     {
       "scenario_second": 2460,
-      "rss_bytes": 77545472
+      "rss_bytes": 73875456
     },
     {
       "scenario_second": 2520,
-      "rss_bytes": 77545472
+      "rss_bytes": 73842688
     },
     {
       "scenario_second": 2580,
-      "rss_bytes": 77545472
+      "rss_bytes": 73842688
     },
     {
       "scenario_second": 2640,
-      "rss_bytes": 77545472
+      "rss_bytes": 73842688
     },
     {
       "scenario_second": 2700,
-      "rss_bytes": 77545472
+      "rss_bytes": 73793536
     },
     {
       "scenario_second": 2760,
-      "rss_bytes": 77545472
+      "rss_bytes": 73793536
     },
     {
       "scenario_second": 2820,
-      "rss_bytes": 77545472
+      "rss_bytes": 73793536
     },
     {
       "scenario_second": 2880,
-      "rss_bytes": 77545472
+      "rss_bytes": 73793536
     },
     {
       "scenario_second": 2940,
-      "rss_bytes": 77545472
+      "rss_bytes": 73793536
     },
     {
       "scenario_second": 3000,
-      "rss_bytes": 77545472
+      "rss_bytes": 73793536
     },
     {
       "scenario_second": 3060,
-      "rss_bytes": 77545472
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 3120,
-      "rss_bytes": 77545472
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3180,
-      "rss_bytes": 77545472
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3240,
-      "rss_bytes": 77545472
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3300,
-      "rss_bytes": 77545472
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3360,
-      "rss_bytes": 77545472
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3420,
-      "rss_bytes": 75235328
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3480,
-      "rss_bytes": 75235328
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3540,
-      "rss_bytes": 75235328
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3600,
-      "rss_bytes": 75235328
+      "rss_bytes": 73629696
     },
     {
       "scenario_second": 3660,
-      "rss_bytes": 75235328
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 3720,
-      "rss_bytes": 75235328
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 3780,
-      "rss_bytes": 74924032
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 3840,
-      "rss_bytes": 74924032
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 3900,
-      "rss_bytes": 74924032
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 3960,
-      "rss_bytes": 74792960
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4020,
-      "rss_bytes": 74711040
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4080,
-      "rss_bytes": 74711040
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4140,
-      "rss_bytes": 74711040
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4200,
-      "rss_bytes": 74711040
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4260,
-      "rss_bytes": 74711040
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4320,
-      "rss_bytes": 74711040
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4380,
-      "rss_bytes": 74711040
+      "rss_bytes": 73646080
     },
     {
       "scenario_second": 4440,
-      "rss_bytes": 74711040
+      "rss_bytes": 73564160
     },
     {
       "scenario_second": 4500,
-      "rss_bytes": 74711040
+      "rss_bytes": 73564160
     },
     {
       "scenario_second": 4560,
-      "rss_bytes": 74711040
+      "rss_bytes": 70139904
     },
     {
       "scenario_second": 4620,
-      "rss_bytes": 74711040
+      "rss_bytes": 69255168
     },
     {
       "scenario_second": 4680,
-      "rss_bytes": 74711040
+      "rss_bytes": 69255168
     },
     {
       "scenario_second": 4740,
-      "rss_bytes": 74711040
+      "rss_bytes": 69255168
     },
     {
       "scenario_second": 4800,
-      "rss_bytes": 74711040
+      "rss_bytes": 69255168
     },
     {
       "scenario_second": 4860,
-      "rss_bytes": 74711040
+      "rss_bytes": 69304320
     },
     {
       "scenario_second": 4920,
-      "rss_bytes": 74711040
+      "rss_bytes": 69320704
     },
     {
       "scenario_second": 4980,
-      "rss_bytes": 74711040
+      "rss_bytes": 69337088
     },
     {
       "scenario_second": 5040,
-      "rss_bytes": 74711040
+      "rss_bytes": 69337088
     },
     {
       "scenario_second": 5100,
-      "rss_bytes": 74711040
+      "rss_bytes": 69419008
     },
     {
       "scenario_second": 5160,
-      "rss_bytes": 74711040
+      "rss_bytes": 69419008
     },
     {
       "scenario_second": 5220,
-      "rss_bytes": 74711040
+      "rss_bytes": 69419008
     },
     {
       "scenario_second": 5280,
-      "rss_bytes": 74711040
+      "rss_bytes": 69419008
     },
     {
       "scenario_second": 5340,
-      "rss_bytes": 74711040
+      "rss_bytes": 69419008
     },
     {
       "scenario_second": 5400,
-      "rss_bytes": 74727424
+      "rss_bytes": 69435392
     },
     {
       "scenario_second": 5460,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5520,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5580,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5640,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5700,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5760,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5820,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5880,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 5940,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6000,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6060,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6120,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6180,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6240,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6300,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6360,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6420,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6480,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6540,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6600,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6660,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6720,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6780,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6840,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6900,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 6960,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 7020,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 7080,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 7140,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     },
     {
       "scenario_second": 7200,
-      "rss_bytes": 74727424
+      "rss_bytes": 70631424
     }
   ],
   "note": "Accelerated scenario coverage is NOT a two-hour wall-clock browser soak."

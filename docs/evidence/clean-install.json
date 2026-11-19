@@ -1,0 +1,53 @@
+{
+  "clean_source_commit": "de74799",
+  "install": "separate Python virtualenv + npm ci from included lockfiles",
+  "unit_tests": {
+    "backend": 45,
+    "frontend": 21
+  },
+  "build": "pass",
+  "temporary_ports": {
+    "backend": 8027,
+    "frontend": 4187
+  },
+  "port_override": "Only temporary Vite proxy/ALLOWED_ORIGINS adjusted to avoid running services",
+  "apis": {
+    "health": {
+      "ok": true,
+      "schema_version": 1,
+      "version": "0.1.0"
+    },
+    "status": {
+      "mode": "live",
+      "upstream_state": "unavailable",
+      "error_code": "configuration_required",
+      "message": "Airplanes.live access and usage policy require verification. No live polling enabled.",
+      "last_attempt": null,
+      "last_success": null,
+      "next_retry": null,
+      "newest_position_time": null,
+      "geometry_edition": "Open geometry · 19 NOV 2026 (provisional)",
+      "counters": {
+        "requests": 0,
+        "invalid": 0,
+        "dropped_updates": 0,
+        "latency_ms": 0,
+        "clients": 0,
+        "tracked": 0,
+        "evictions": 0
+      }
+    },
+    "aircraft": {
+      "mode": "live",
+      "tracks": 0
+    },
+    "airport": {
+      "runways": 3
+    }
+  },
+  "browser": "installed Chrome",
+  "blocked_external_imagery": true,
+  "demo_count": 16,
+  "pause_and_mode_isolation": "pass",
+  "page_errors": []
+}

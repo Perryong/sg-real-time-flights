@@ -5,3 +5,5 @@ The official https://airplanes.live/api-docs/ and https://airplanes.live/api-gui
 The adapter is implemented against synthetic `ac`/`now` contract fixtures; these are assumptions until verified. `AIRPLANES_NOW_UNITS` explicitly configures seconds or milliseconds. Credentials remain in the backend. The default requires both LIVE_ENABLED and AIRPLANES_ACCESS_VERIFIED to be explicitly enabled after verification. No provider substitution or automatic demo fallback.
 
 Mock transport tests cover empty/partial responses, schema errors, timeout, 401/403 pause, numeric/date 429 Retry-After and 5xx. Store/API tests cover original timestamps, late/duplicate records, capacity, discontinuities, origin rejection and bounded shared delivery. Live release AC-02 and coverage/classification validation remain blocked.
+
+A final official-document check again returned 403 for both pages. Search indexing exposes an API overview but does not establish current geographic endpoint access, units or reuse permissions; it is not sufficient to enable polling. Third-party claims about access restrictions were not treated as provider authorization evidence.

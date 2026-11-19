@@ -42,5 +42,7 @@
   ],
   "errors": [],
   "transport": "Playwright synthetic WebSocket messages, no external aircraft feed",
-  "target_30fps": false
+  "target_30fps": false,
+  "measurement": "Superseded diagnostic: browser requestAnimationFrame, not verified Cesium postRender",
+  "valid_for_scene_acceptance": false
 }

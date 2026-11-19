@@ -101,10 +101,11 @@ PYTHONPATH=. .venv/bin/python scripts/soak.py --duration 7200 --accelerated
 npm --prefix frontend run preview
 # In another terminal:
 cd frontend
-node scripts/benchmark.mjs 300
+BENCH_CHANNEL=chrome node scripts/benchmark.mjs 300
+# Omit BENCH_CHANNEL to use Playwright Chromium; record its actual renderer.
 ```
 
-The accelerated scenario soak does **not** establish two-hour wall-clock/browser reliability. Actual results and all unmet acceptance gates are listed in [release evidence](docs/evidence/release.md). Vite reports a large Cesium chunk; the map is lazy-loaded so status and controls can load independently.
+Measured locally: 100 synthetic aircraft averaged **59.47 actual rendered FPS** over five minutes in installed Chrome on Apple M5 Pro; ten ASGI clients received updates at **0.366 s p95**. These are configuration-specific synthetic measurements. The accelerated scenario soak does **not** establish two-hour wall-clock/browser reliability. Actual results and all unmet acceptance gates are listed in [release evidence](docs/evidence/release.md). Vite reports a large Cesium chunk; the map is lazy-loaded so status and controls can load independently.
 
 ## Source archive
 
