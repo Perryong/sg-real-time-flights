@@ -1,0 +1,12 @@
+.env
+.venv/
+node_modules/
+dist/
+.codex-attachments/
+.superpowers/
+__pycache__/
+.pytest_cache/
+test-results/
+playwright-report/
+*.log
+.DS_Store
