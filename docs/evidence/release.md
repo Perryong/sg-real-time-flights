@@ -1,6 +1,6 @@
 # Release evidence — 19 November 2026
 
-This is a runnable local geographic tracker preview. Live observations and authoritative geometry accuracy are not certified. No public deployment or external aircraft requests were made.
+This is a runnable local geographic tracker preview. Live observations and authoritative geometry accuracy are not certified. No public deployment was made. The initial preview used no external aircraft queries; a subsequent provider-access check is recorded in provider-contract.md (one refused Airplanes.live request and one successful ADSB.fi evaluation query). Continuous live polling is still disabled pending provider selection.
 
 ## Current verification
 
