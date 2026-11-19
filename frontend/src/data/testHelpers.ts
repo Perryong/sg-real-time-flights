@@ -1,4 +1,68 @@
-import type { Observation, Snapshot, Track } from './types';
-export const observation=(t:number,lon=104):Observation=>({id:'simulated:fixture:a',provider:'fixture',provider_id:'a',session_id:'initial',mode:'simulated',callsign:'SYN 101',registration:null,aircraft_type:null,lat:1,lon,alt_geom_m:1000,alt_baro_m:1000,ground:false,speed_mps:100,track_deg:90,heading_deg:null,vertical_rate_mps:0,position_time:t,provider_time:t,receipt_time:t,message_time:null,timestamp_quality:'derived',source_category:'synthetic',quality:{},raw:{}});
-export const track=(times:number[]=[1000,1010]):Track=>({id:'simulated:fixture:a',session_id:'initial',latest:observation(times.at(-1)!),history:times.map((t,i)=>observation(t,104+i*.01)),phase:{phase:'airborne',candidate_runways:[],confidence:'low',reasons:[],evidence_times:[],rule_version:'1.0'}});
-export const snapshot=(sequence=0,epoch='epoch',time=1000):Snapshot=>({type:'snapshot',schema_version:1,epoch,sequence,mode:'simulated',server_time:time,scenario_time:time,status:{mode:'simulated',upstream_state:'demo',error_code:null,message:'Synthetic',last_attempt:null,last_success:null,next_retry:null,newest_position_time:time,geometry_edition:'provisional',counters:{}},tracks:[track([time])]});
+import type { Observation, Snapshot, Track } from "./types";
+export const observation = (t: number, lon = 104): Observation => ({
+  id: "simulated:fixture:a",
+  provider: "fixture",
+  provider_id: "a",
+  session_id: "initial",
+  mode: "simulated",
+  callsign: "SYN 101",
+  registration: null,
+  aircraft_type: null,
+  lat: 1,
+  lon,
+  alt_geom_m: 1000,
+  alt_baro_m: 1000,
+  ground: false,
+  speed_mps: 100,
+  track_deg: 90,
+  heading_deg: null,
+  vertical_rate_mps: 0,
+  position_time: t,
+  provider_time: t,
+  receipt_time: t,
+  message_time: null,
+  timestamp_quality: "derived",
+  source_category: "synthetic",
+  quality: {},
+  raw: {},
+});
+export const track = (times: number[] = [1000, 1010]): Track => ({
+  id: "simulated:fixture:a",
+  session_id: "initial",
+  latest: observation(times.at(-1)!),
+  history: times.map((t, i) => observation(t, 104 + i * 0.01)),
+  phase: {
+    phase: "airborne",
+    candidate_runways: [],
+    confidence: "low",
+    reasons: [],
+    evidence_times: [],
+    rule_version: "1.0",
+  },
+});
+export const snapshot = (
+  sequence = 0,
+  epoch = "epoch",
+  time = 1000,
+): Snapshot => ({
+  type: "snapshot",
+  schema_version: 1,
+  epoch,
+  sequence,
+  mode: "simulated",
+  server_time: time,
+  scenario_time: time,
+  status: {
+    mode: "simulated",
+    upstream_state: "demo",
+    error_code: null,
+    message: "Synthetic",
+    last_attempt: null,
+    last_success: null,
+    next_retry: null,
+    newest_position_time: time,
+    geometry_edition: "provisional",
+    counters: {},
+  },
+  tracks: [track([time])],
+});

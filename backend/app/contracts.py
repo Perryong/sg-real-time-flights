@@ -55,7 +55,7 @@ class FeedStatus(BaseModel):
     last_success: float | None = None
     next_retry: float | None = None
     newest_position_time: float | None = None
-    geometry_edition: str = 'CAAS 03 SEP 2026; current status unverified'
+    geometry_edition: str = 'Open geometry · 19 NOV 2026 (provisional)'
     counters: dict[str, int | float] = Field(default_factory=dict)
 
 class Snapshot(BaseModel):

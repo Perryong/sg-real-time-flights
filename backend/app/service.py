@@ -71,7 +71,7 @@ class FeedService:
                 self.next_retry=self.clock()+self.settings.poll_seconds
             except ProviderError as e:
                 self.error=e.code; self.paused=e.pause; self.failures+=1
-                delay=e.retry_after if e.retry_after is not None else min(60,self.settings.poll_seconds*2**min(self.failures,4))+random.uniform(0,1)
+                delay=e.retry_after if e.retry_after is not None else min(60,self.settings.poll_seconds*2**min(self.failures,4)+random.uniform(0,1))
                 self.next_retry=None if self.paused else self.clock()+max(self.settings.poll_seconds,delay)
             self.counters['latency_ms']=round((time.monotonic()-start)*1000,1)
             self.sequence+=1; self.publish()

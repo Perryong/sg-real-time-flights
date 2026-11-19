@@ -46,9 +46,18 @@ def create_app(settings=None, provider=None, clock=time.time):
     @app.get('/api/fixtures/{name}')
     def fixture(name: str):
         if name not in ('changi-demo','recorded-test'): raise HTTPException(404)
-        path=ROOT/'tests/fixtures/scenarios'/f'{name}.json'
+        path=ROOT/'tests/fixtures/scenarios/changi-demo.json'
         if not path.exists(): raise HTTPException(404,'Fixture unavailable')
-        return json.loads(path.read_text())
+        data=json.loads(path.read_text())
+        if name=='recorded-test':
+            for frame in data['frames']:
+                frame['mode']='recorded';frame['status']['mode']='recorded';frame['status']['upstream_state']='recorded'
+                frame['epoch']='recorded-synthetic-test-v1'
+                for track in frame['tracks']:
+                    track['id']=track['id'].replace('simulated:','recorded:',1)
+                    for observation in [track['latest'],*track['history']]:
+                        observation['mode']='recorded';observation['id']=track['id']
+        return data
     @app.websocket('/ws/aircraft')
     async def stream(ws:WebSocket):
         if ws.headers.get('origin') not in settings.origins:

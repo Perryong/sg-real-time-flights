@@ -83,7 +83,7 @@
           "title": "Newest Position Time"
         },
         "geometry_edition": {
-          "default": "CAAS 03 SEP 2026; current status unverified",
+          "default": "Open geometry \u00b7 19 NOV 2026 (provisional)",
           "title": "Geometry Edition",
           "type": "string"
         },

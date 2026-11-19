@@ -1,0 +1,10 @@
+{
+  "clients": 10,
+  "aircraft": 100,
+  "wall_seconds": 300.49,
+  "shared_provider_polls": 60,
+  "p95_receipt_to_asgi_client_seconds": 0.4960880000144243,
+  "max_seconds": 0.6261922921985388,
+  "transport": "in-process ASGI TestClient, includes JSON serialization; not a network deployment benchmark",
+  "upstream_requests": 0
+}

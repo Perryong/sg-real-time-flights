@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class Settings:
     live_enabled: bool = False
     poll_seconds: float = 10
-    origins: tuple[str, ...] = ('http://localhost:5173','http://127.0.0.1:5173','http://localhost:4173','http://127.0.0.1:4173')
+    origins: tuple[str, ...] = ('http://localhost:5177','http://127.0.0.1:5177','http://localhost:4177','http://127.0.0.1:4177')
     token: str = field(default='', repr=False)
     now_units: str = 'seconds'
 

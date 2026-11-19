@@ -33,3 +33,18 @@ async def test_failure_does_not_renew_last_success_and_access_pauses():
     assert s.status().upstream_state=='degraded'
     now[0]+=51
     assert s.status().upstream_state=='unavailable'
+
+@pytest.mark.asyncio
+async def test_retry_jitter_respects_cap_but_retry_after_is_never_shortened(monkeypatch):
+    now=1700000000
+    f=Fake(); s=FeedService(Settings(),f,lambda:now)
+    monkeypatch.setattr('backend.app.service.random.uniform',lambda a,b:1)
+    async def fail(): raise ProviderError('unavailable')
+    f.fetch=fail
+    for _ in range(5):
+        await s.poll_once()
+        assert s.next_retry-now<=60
+    async def throttled(): raise ProviderError('rate_limited',retry_after=90)
+    f.fetch=throttled
+    await s.poll_once()
+    assert s.next_retry-now==90
