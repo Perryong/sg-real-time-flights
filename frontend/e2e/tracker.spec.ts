@@ -196,7 +196,7 @@ test(`regional overview includes edge aircraft at ${viewport.width}x${viewport.h
   const snapshot = structuredClone(fixture.frames[0]);
   Object.assign(snapshot, { mode: "live", scenario_time: null, server_time: now });
   Object.assign(snapshot.status, { mode: "live", upstream_state: "healthy" });
-  snapshot.tracks = [[2.86,103.99],[-0.14,103.99],[1.36,102.49],[1.36,105.49]].map(([lat,lon],i) => {
+  snapshot.tracks = [[5.6,103.99],[-2.85,103.99],[1.36,99.75],[1.36,108.2]].map(([lat,lon],i) => {
     const t = structuredClone(fixture.frames[0].tracks[0]);
     t.id = `live:adsb.fi:edge${i}`;
     t.history = [];
@@ -208,7 +208,7 @@ test(`regional overview includes edge aircraft at ${viewport.width}x${viewport.h
   await page.goto("/");
   await expect.poll(() => page.evaluate(() => (window as any).__changiBenchmark.aircraftCount)).toBe(4);
   await expect.poll(() => page.evaluate(() => (window as any).__changiBenchmark.visibleCount)).toBe(4);
-  await expect(page.locator(".region-badge")).toHaveText("100 NM");
+  await expect(page.locator(".region-badge")).toHaveText("500 km");
   const before3D = await page.evaluate(() => (window as any).__changiBenchmark.lastRender);
   await page.getByRole("button",{name:"3D",exact:true}).click();
   await expect(page.getByRole("button",{name:"2D",exact:true})).toBeVisible();
@@ -247,4 +247,37 @@ test('daily movement estimates remain usable on mobile and never appear in demo'
   await page.getByRole('textbox',{name:'Search aircraft'}).fill('TEST');
   await page.getByRole('button',{name:'Demo',exact:true}).click();
   await expect(counters).toHaveCount(0);
+});
+
+test('historical routes filter likely Changi flights and explain evidence in 3D', async ({page})=>{
+  const now=Date.now()/1000,day=new Date(now*1000-86400000).toISOString().slice(0,10);
+  const frame=structuredClone(fixture.frames[0]);
+  Object.assign(frame,{mode:'live',server_time:now,scenario_time:null});
+  Object.assign(frame.status,{mode:'live',upstream_state:'healthy'});
+  frame.tracks=['INBOUND','OUTBOUND','UNKNOWN'].map((name,i)=>{
+    const t=structuredClone(fixture.frames[0].tracks[0]);
+    t.id=`live:icao24:abc12${i}`;
+    Object.assign(t.latest,{id:t.id,mode:'live',provider:'flyitalyadsb',callsign:name,lat:2,lon:103.9915,ground:false,speed_mps:150,track_deg:i===0?180:0,position_time:now,receipt_time:now,
+      route:i===2?null:{provider:'flyitalyadsb',callsign:name,origin:i===0?'YPPH':'WSSS',destination:i===0?'WSSS':'WMKK',origin_iata:i===0?'PER':'SIN',destination_iata:i===0?'SIN':'KUL',observed_count:3,last_seen_day:day,retrieved_at:now}});
+    t.history=[t.latest];return t;
+  });
+  await page.routeWebSocket('**/ws/aircraft',ws=>ws.send(JSON.stringify(frame)));
+  await page.goto('/');
+  await page.getByLabel('Changi direction').selectOption('inbound');
+  await expect(page.getByRole('button',{name:'Select OUTBOUND'})).toHaveCount(0);
+  await page.getByRole('button',{name:'Select INBOUND'}).click();
+  const details=page.getByRole('region',{name:'Selected aircraft details'});
+  await expect(details.getByText('PER → SIN',{exact:true})).toBeVisible();
+  await expect(details.getByText(/not a confirmed destination/)).toBeVisible();
+  await expect(details.getByRole('link',{name:'Official Changi arrivals'})).toHaveAttribute('href','https://www.changiairport.com/en/fly/flight-information/arrivals.html');
+  await page.getByRole('button',{name:'Close aircraft details'}).click();
+  await page.getByRole('button',{name:'3D',exact:true}).click();
+  await expect(page.getByRole('button',{name:'2D',exact:true})).toBeVisible();
+  await page.setViewportSize({width:375,height:667});
+  await page.getByLabel('Changi direction').selectOption('outbound');
+  await page.getByRole('button',{name:'Select OUTBOUND'}).click();
+  await expect(details.getByText('SIN → KUL',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Close aircraft details'}).click();
+  await page.getByRole('button',{name:'Demo',exact:true}).click();
+  await expect(page.getByLabel('Changi direction')).toHaveCount(0);
 });

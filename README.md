@@ -55,6 +55,16 @@ The temporary tunnel hostname changes whenever the tunnel process restarts. Read
 
 To stop sharing from this Mac, unload the tunnel login service using `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.changi-observatory.tunnel.plist`. The backend service can be unloaded the same way using `com.changi-observatory.backend.plist`. To restart an unloaded service, use `launchctl bootstrap gui/$(id -u)` followed by its plist path. Keep the existing service files private; they contain workstation paths but no provider keys.
 
+## Likely arrivals, departures and historical routes
+
+The live Traffic panel has a **Changi direction** dropdown for likely inbound, likely outbound and unknown/other aircraft. Flight rows and selected details show the usual route when supplied by FlyItalyADSB. `?with=route` adds historical route metadata to the existing 500 km request; no additional account, request loop or paid plan is used. Route data is credited separately from the source supplying the newest position.
+
+A likely inbound label requires a route ending at WSSS and a course within 60 degrees toward Changi. A likely outbound label requires a route starting at WSSS and a course within 60 degrees away. Both require a fresh (at most 20 seconds) airborne report, speed at least 30 m/s, matching callsign and route data retrieved within five minutes with an observation day within the last seven UTC days. Within 1 km of the airport centre or beyond 500 km, intent remains unknown. A turn, stale data or missing evidence can return a flight to unknown. Existing runway approach/climb estimates are separate.
+
+These labels are not confirmed flight plans, destinations, airport arrival times or proof that a flight took off from Changi today. Callsigns can serve different routes. Historical route evidence cannot increase detected movement counters. Route metadata matches ICAO identity and callsign across sources, and updates cannot renew a position timestamp. Malformed, old or future route evidence is ignored. Demo is isolated from live route filters.
+
+**Schedules & gates** links open Changi’s official arrivals/departures boards. No website credentials or private Changi service is copied into the application, and no schedule, gate, boarding status or exact ETA is fabricated.
+
 ## Today’s detected Changi movements
 
 The live Traffic panel shows **Landings detected** and **Takeoffs detected** for the current Singapore calendar day. These are conservative estimates, not official airport totals or counts of all flights in Singapore. Two airborne reports followed by two ground reports, with deceleration and a moving ground position aligned near a Changi runway, support a landing. The reverse transition with repeated climb supports a takeoff. Each adjacent report must be at most 20 seconds apart and use the same identity, source and track session. Unknown ground states, overflights, taxiing and disappearing tracks do not count. Runway geometry remains provisional, and brief repeated detections are deduplicated.
@@ -74,7 +84,7 @@ Minimal event identity/type/time and daily coverage are stored in ignored `runti
 - **Playback:** pause, seek and restart the bundled scenario. Pausing freezes scenario time and expiry. The read-only `/api/fixtures/recorded-test` endpoint provides a synthetic recorded-contract fixture for tests, not a historical flight service.
 - **Sources & accuracy:** geometry provenance, upstream/transport status, last successful response and next retry. Selected details show the original position date/time, altitude reference, timing, display method and inference reasons.
 
-On mobile the aircraft panel starts collapsed so the map stays visible. Use Traffic to open it. Satellite imagery, actual schedules, destinations, weather, account features and global aircraft coverage are not implemented.
+On mobile the aircraft panel starts collapsed so the map stays visible. Use Traffic to open it. Satellite imagery, confirmed schedules/destinations, weather, account features and global aircraft coverage are not implemented. Historical routes and likely Changi direction estimates are available when evidence supports them.
 
 ## Live configuration
 
@@ -108,7 +118,7 @@ This is **not a parked-aircraft inventory**. Aircraft with no transmitted/receiv
 
 ## Optional FlyItalyADSB regional supplement
 
-The free FlyItalyADSB adapter adds reported aircraft over the same 100 NM (185.2 km) area while retaining ADSB.fi and Cesium. Get a free key from [FlyItalyADSB](https://flyitalyadsb.com/data/api/), place `FLYITALYADSB_API_KEY` in the private backend `.env`, set `FLYITALYADSB_ENABLED=true`, and restart the backend. Existing live/personal-use settings remain required. Never put the key in a frontend variable or commit it.
+The free FlyItalyADSB adapter adds reported aircraft within 500 km of Changi while retaining the ADSB.fi inner 100 NM (185.2 km) feed and Cesium. The overview and ring show the maximum 500 km query area; availability still depends on receivers and enabled sources. Get a free key from [FlyItalyADSB](https://flyitalyadsb.com/data/api/), place `FLYITALYADSB_API_KEY` in the private backend `.env`, set `FLYITALYADSB_ENABLED=true`, and restart the backend. Existing live/personal-use settings remain required. Never put the key in a frontend variable or commit it.
 
 One shared collector polls every 30 seconds (at most 89,280 requests over 31 days), within the published free allowance of 300,000 requests/month and 30/minute. The radius parameter uses kilometres; response timestamps use seconds. Source health and retry state appear in Sources & accuracy. The newest source position wins for each ICAO identity, and a source change resets interpolation history. Ground reports are included when available; no parked positions are inferred. Quota/access denials stop only this source; ADSB.fi continues.
 

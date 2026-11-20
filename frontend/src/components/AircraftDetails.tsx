@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { Track } from "../data/types";
+import RouteDetails from "./RouteDetails";
 import { freshness } from "../data/freshness";
 import { displayPosition } from "../data/display";
 export const titleCase = (s: string) =>
@@ -69,6 +70,7 @@ export default function AircraftDetails({
           </p>
         </div>
       </div>
+      <RouteDetails observation={o} now={now} />
       <div className="aircraft-silhouette" aria-hidden="true">
         <Plane size={116} strokeWidth={0.8} />
         <span>GENERIC MODEL · ESTIMATED ATTITUDE</span>

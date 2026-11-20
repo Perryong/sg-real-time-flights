@@ -1691,3 +1691,17 @@ input {
 .movement-summary summary { cursor: pointer; color: #c6ba8a; }
 .movement-summary details[open] { max-height: 130px; overflow-y: auto; }
 .movement-summary p { margin-top: 8px; }
+
+.direction-controls { padding: 10px 15px 0; }
+.direction-controls label { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: #9eb3be; font-size: 10px; }
+.direction-controls select { min-width: 0; max-width: 175px; padding: 6px; background: #13232d; color: #d7e3e7; border: 1px solid #354a56; border-radius: 5px; font-size: 10px; }
+.flight-board-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; font-size: 10px; color: #9eb3be; }
+.flight-board-links a { color: var(--lime); }
+.route-intent.inbound { color: #c1f189; }
+.route-intent.outbound { color: #89ccef; }
+.route-intent.unknown { color: #93a8b3; }
+.route-details { margin: 14px 0; padding: 12px; background: #0c1c26; border: 1px solid #2e4452; border-radius: 7px; }
+.route-details > strong { font-size: 11px; }
+.route-details h3 { font: 17px var(--mono); margin-top: 9px; }
+.route-details p { color: #a5b9c3; font-size: 10px; line-height: 1.6; margin-top: 8px; }
+@media (max-width: 800px) { .direction-controls label { align-items: flex-start; flex-direction: column; } .direction-controls select { width: 100%; max-width: none; } }

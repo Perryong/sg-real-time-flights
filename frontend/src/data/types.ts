@@ -1,5 +1,17 @@
 export type Mode = "live" | "simulated" | "recorded";
+export interface HistoricalRoute {
+  provider: "flyitalyadsb";
+  callsign: string;
+  origin: string;
+  destination: string;
+  origin_iata: string | null;
+  destination_iata: string | null;
+  observed_count: number;
+  last_seen_day: string;
+  retrieved_at: number;
+}
 export interface Observation {
+  route?: HistoricalRoute | null;
   id: string;
   provider: string;
   provider_id: string;

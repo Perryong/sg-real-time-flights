@@ -8,7 +8,7 @@ NOW=1700000000
 @pytest.mark.asyncio
 async def test_flyitaly_uses_private_key_kilometres_seconds_and_actual_provenance():
     def respond(request):
-        assert str(request.url)=='https://api.flyitalyadsb.com/v2/lat/1.3644/lon/103.9915/dist/185.2'
+        assert str(request.url)=='https://api.flyitalyadsb.com/v2/lat/1.3644/lon/103.9915/dist/500?with=route'
         assert request.headers['x-api-key']=='test-private-key'
         return httpx.Response(200,json={'now':NOW,'count':1,'ac':[
             {'hex':'ABC123','lat':1.36,'lon':103.99,'seen_pos':2,'seen':1,'alt_baro':'ground','gs':0}]})

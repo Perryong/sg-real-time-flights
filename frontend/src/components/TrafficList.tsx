@@ -1,4 +1,4 @@
-import { COVERAGE_RADIUS_NM } from "../data/coverage";
+import { COVERAGE_RADIUS_KM } from "../data/coverage";
 import {
   Plane,
   ChevronRight,
@@ -10,6 +10,9 @@ import {
 import type { Track, Mode, FeedStatus } from "../data/types";
 import MovementSummary from "./MovementSummary";
 import ProviderCredits from "./ProviderCredits";
+import {useState} from "react";
+import {changiIntent,intentLabel,routeFor} from "../data/routes";
+import {OfficialBoards} from "./RouteDetails";
 import { freshness } from "../data/freshness";
 interface Props {
   movements?: FeedStatus["movements"];
@@ -28,8 +31,10 @@ interface Props {
   unavailable: boolean;
 }
 export default function TrafficList(p: Props) {
+  const [direction,setDirection]=useState("all");
   const filtered = p.tracks.filter(
     (t) =>
+      (p.mode !== "live" || direction === "all" || changiIntent(t.latest,p.now) === direction) &&
       (p.filter === "all" ||
         (p.filter === "airborne"
           ? t.latest.ground === false
@@ -98,6 +103,17 @@ export default function TrafficList(p: Props) {
           </button>
         ))}
       </div>
+      {p.mode === "live" && <div className="direction-controls">
+        <label>Changi direction
+          <select aria-label="Changi direction" value={direction} onChange={e=>setDirection(e.target.value)}>
+            <option value="all">All directions</option>
+            <option value="inbound">Inbound to SIN (likely)</option>
+            <option value="outbound">Outbound from SIN (likely)</option>
+            <option value="unknown">Unknown / other</option>
+          </select>
+        </label>
+        <OfficialBoards />
+      </div>}
       <div className="list-caption">
         <span>{filtered.length} AIRCRAFT</span>
         <span>ALTITUDE / SPEED</span>
@@ -105,7 +121,8 @@ export default function TrafficList(p: Props) {
       <div className="traffic-scroll">
         {filtered.map((t) => {
           const o = t.latest,
-            state = freshness(o.position_time, p.now);
+            state = freshness(o.position_time, p.now),
+            route = routeFor(o,p.now), intent=changiIntent(o,p.now);
           return (
             <button
               className={`flight-row ${p.selected === t.id ? "selected" : ""}`}
@@ -121,6 +138,8 @@ export default function TrafficList(p: Props) {
               </span>
               <span className="flight-identity">
                 <strong>{o.callsign ?? o.provider_id}</strong>
+                {p.mode === "live" && <small className={`route-intent ${intent}`}>{intentLabel[intent]}</small>}
+                {p.mode === "live" && route && <small>Usual {route.origin_iata??route.origin} → {route.destination_iata??route.destination}</small>}
                 <small>
                   {o.aircraft_type ?? "Unknown type"} <i>·</i>{" "}
                   {state === "fresh"
@@ -187,7 +206,7 @@ export default function TrafficList(p: Props) {
             {p.unavailable ? " · unavailable" : " · observations"}
           </span>
         ) : "Synthetic scenario · not real flights"}
-        <span>{COVERAGE_RADIUS_NM} NM</span>
+        <span>{COVERAGE_RADIUS_KM} km</span>
       </div>
     </section>
   );

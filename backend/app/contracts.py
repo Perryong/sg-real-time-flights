@@ -3,7 +3,20 @@ from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 Mode = Literal['live', 'simulated', 'recorded']
 
+class HistoricalRoute(BaseModel):
+    model_config = ConfigDict(strict=True, allow_inf_nan=False)
+    provider: Literal['flyitalyadsb'] = 'flyitalyadsb'
+    callsign: str = Field(min_length=1, max_length=100)
+    origin: str = Field(pattern=r'^[A-Z]{4}$')
+    destination: str = Field(pattern=r'^[A-Z]{4}$')
+    origin_iata: str | None = Field(default=None, pattern=r'^[A-Z]{3}$')
+    destination_iata: str | None = Field(default=None, pattern=r'^[A-Z]{3}$')
+    observed_count: int = Field(ge=1, le=100000)
+    last_seen_day: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
+    retrieved_at: float
+
 class Observation(BaseModel):
+    route: HistoricalRoute | None = None
     model_config = ConfigDict(allow_inf_nan=False)
     id: str
     provider: str

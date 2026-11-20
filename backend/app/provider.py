@@ -2,7 +2,7 @@ import time
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 import httpx
-from .normalize import normalize_record, number
+from .normalize import normalize_record, normalize_route, number
 from .contracts import Observation
 
 @dataclass
@@ -59,11 +59,13 @@ class AdsbFiProvider:
         for raw in payload['ac']:
             o=normalize_record(raw,now,receipt,'live',True)
             if o is None: invalid+=1
-            else: observations.append(o.model_copy(update={'provider':self.NAME,'id':f'live:{self.NAME}:{o.provider_id}'}))
+            else:
+                route=normalize_route(raw.get('route'),o.callsign,receipt) if self.NAME=='flyitalyadsb' else None
+                observations.append(o.model_copy(update={'provider':self.NAME,'id':f'live:{self.NAME}:{o.provider_id}','route':route}))
         return ProviderResult(observations,invalid)
 
 class FlyItalyProvider(AdsbFiProvider):
-    URL = 'https://api.flyitalyadsb.com/v2/lat/1.3644/lon/103.9915/dist/185.2'
+    URL = 'https://api.flyitalyadsb.com/v2/lat/1.3644/lon/103.9915/dist/500?with=route'
     NAME = 'flyitalyadsb'
     TIME_DIVISOR = 1
 

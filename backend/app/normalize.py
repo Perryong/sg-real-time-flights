@@ -1,5 +1,7 @@
 import math
-from .contracts import Mode, Observation
+from .contracts import Mode, Observation, HistoricalRoute
+from datetime import date, datetime, timezone
+from pydantic import ValidationError
 
 def number(value):
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
@@ -42,3 +44,16 @@ def normalize_record(raw: dict, provider_time: float | None, receipt_time: float
         message_time=event_time('seen'), timestamp_quality='derived' if position_time is not None else 'unknown',
         source_category=text(raw.get('type')), raw=raw_values,
         quality={k: raw[k] for k in ('nic','rc','nac_p','sil') if number(raw.get(k)) is not None})
+
+
+def normalize_route(raw, callsign, receipt_time):
+    if not isinstance(raw,dict) or raw.get('source')!='observed' or not callsign:
+        return None
+    try:
+        route=HistoricalRoute(callsign=callsign.strip().upper(),origin=raw.get('from'),destination=raw.get('to'),
+            origin_iata=raw.get('from_iata') or None,destination_iata=raw.get('to_iata') or None,
+            observed_count=raw.get('count'),last_seen_day=raw.get('last_day'),retrieved_at=float(receipt_time))
+        age=(datetime.fromtimestamp(receipt_time,timezone.utc).date()-date.fromisoformat(route.last_seen_day)).days
+        return route if 0<=age<=7 else None
+    except (ValidationError,ValueError,TypeError):
+        return None

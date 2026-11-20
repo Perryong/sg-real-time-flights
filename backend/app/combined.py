@@ -66,15 +66,20 @@ class CombinedProvider:
                 if task.done():
                     task.result()
                     del self.pending[name]
-        now=self.clock();best={}
+        now=self.clock();best={};routes={}
         for observations in self.cache.values():
             for o in observations:
                 if o.position_time is not None and not 0<=now-o.position_time<=120:continue
                 ident=o.provider_id.lower()
                 key=f'live:icao24:{ident}' if re.fullmatch(r'[0-9a-f]{6}',ident) else o.id
+                if o.route is not None and o.callsign and o.route.callsign==o.callsign.strip().upper():
+                    routes[(key,o.route.callsign)]=o.route
                 old=best.get(key)
                 if old is None or (o.position_time or 0)>(old.position_time or 0):
                     best[key]=o.model_copy(update={'id':key})
+        for key,o in best.items():
+            route=routes.get((key,(o.callsign or '').strip().upper()))
+            best[key]=o.model_copy(update={'route':route})
         if not any(s.last_success is not None and now-s.last_success<=60 for s in self.sources.values()):
             raise ProviderError('all_sources_unavailable')
         invalid=self.invalid;self.invalid=0

@@ -1,4 +1,3 @@
-import { COVERAGE_RADIUS_NM } from "../data/coverage";
 import { liveAvailable } from "../data/hosting";
 import { useEffect, useRef } from "react";
 import { X, ExternalLink, Layers3 } from "lucide-react";
@@ -106,7 +105,7 @@ export default function SourceDetails({
           {primary?.error_code && <p>Access notice: {primary.error_code}</p>}
           <p>
             Live observations are provided by ADSB.fi for personal, non-commercial
-            use. The search covers {COVERAGE_RADIUS_NM} nautical miles around Changi,
+            use. The ADSB.fi search covers 100 nautical miles (185.2 km) around Changi,
             including Singapore and nearby Malaysian and Indonesian airspace.
             All aircraft with usable reported positions are included, regardless
             of airline or callsign. This is not a complete aircraft census:
@@ -125,9 +124,12 @@ export default function SourceDetails({
             <div><dt>Next check</dt><dd>{regional.next_retry == null ? "Not scheduled" : new Date(regional.next_retry * 1000).toISOString()}</dd></div>
             {regional.error_code && <div><dt>Source notice</dt><dd>{regional.error_code}</dd></div>}
           </dl>}
-          <p>When enabled, FlyItalyADSB checks the same 100 NM area every 30 seconds.
+          <p>When enabled, FlyItalyADSB checks a 500 km radius every 30 seconds.
             Aircraft appear once using the newest reported position. Ground aircraft
-            are included when reported; this is not a complete parking inventory.</p>
+            are included when reported; this is not a complete parking inventory.
+            Historical routes describe a callsign’s usual route in the last seven days, not today’s confirmed itinerary.
+            Likely inbound/outbound labels also require a fresh airborne position and compatible course.
+            Gates, boarding, schedules and exact arrival times are available through the official Changi board links.</p>
           <a href="https://flyitalyadsb.com/" target="_blank" rel="noreferrer">FlyItalyADSB <ExternalLink size={12} /></a>
           <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">Data: CC BY-SA 4.0 <ExternalLink size={12} /></a>
         </div>

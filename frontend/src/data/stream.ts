@@ -8,6 +8,15 @@ const object = (v: unknown): v is Record<string, any> =>
 const finite = (v: unknown) => typeof v === "number" && Number.isFinite(v);
 const nullable = (v: unknown) => v === null || finite(v);
 const modes = ["live", "simulated", "recorded"];
+function isRoute(r: unknown) {
+  if (!object(r)) return false;
+  const day=typeof r.last_seen_day === "string" ? Date.parse(r.last_seen_day+"T00:00:00Z") : NaN;
+  return r.provider === "flyitalyadsb" && typeof r.callsign === "string" && r.callsign.length > 0 && r.callsign.length <= 100 &&
+    ["origin", "destination"].every(k => typeof r[k] === "string" && /^[A-Z]{4}$/.test(r[k])) &&
+    ["origin_iata", "destination_iata"].every(k => r[k] === null || (typeof r[k] === "string" && /^[A-Z]{3}$/.test(r[k]))) &&
+    Number.isSafeInteger(r.observed_count) && r.observed_count > 0 && r.observed_count <= 100000 && finite(r.retrieved_at) &&
+    Number.isFinite(day) && new Date(day).toISOString().slice(0,10) === r.last_seen_day;
+}
 function isObservation(v: unknown): v is Observation {
   if (
     !object(v) ||
@@ -43,6 +52,7 @@ function isObservation(v: unknown): v is Observation {
     ["callsign", "registration", "aircraft_type", "source_category"].every(
       (k) => v[k] === null || typeof v[k] === "string",
     ) &&
+    (v.route == null || isRoute(v.route)) &&
     typeof v.provider === "string" &&
     typeof v.provider_id === "string" &&
     object(v.raw) &&

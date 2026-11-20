@@ -36,3 +36,13 @@ it('rejects malformed optional movement counts while accepting older feeds',()=>
  for(const bad of [{...movements,landings:-1},{...movements,takeoffs:1.5},{...movements,observed_seconds:Infinity},{...movements,day:'oops'}])
   expect(acceptSnapshot(initial,{...value,status:{...value.status,movements:bad}},1)).toBe(initial);
 });
+it('validates optional route evidence without requiring it on old fixtures',()=>{
+ const initial={connectionId:1,snapshot:null};const value=snapshot();
+ const route={provider:'flyitalyadsb' as const,callsign:'SIA214',origin:'YPPH',destination:'WSSS',origin_iata:'PER',destination_iata:'SIN',observed_count:7,last_seen_day:'2026-11-19',retrieved_at:1000};
+ value.tracks[0].latest.route=route;
+ expect(acceptSnapshot(initial,value,1)).not.toBe(initial);
+ for(const bad of [{...route,destination:'<script>'},{...route,observed_count:-1},{...route,retrieved_at:NaN},{...route,last_seen_day:'2026-02-30'}]){
+  value.tracks[0].latest.route=bad;
+  expect(acceptSnapshot(initial,value,1)).toBe(initial);
+ }
+});

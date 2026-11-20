@@ -14,7 +14,12 @@ class TrackStore:
             old=self.tracks.get(o.id)
             if old:
                 before, after=old.latest.position_time, o.position_time
-                if before is not None and (after is None or after<=before): continue
+                if before is not None and (after is None or after<=before):
+                    if after==before:
+                        # Route metadata can arrive from a slower source; never renew a position.
+                        route=o.route if o.callsign==old.latest.callsign else None
+                        old.latest=old.latest.model_copy(update={'route':route})
+                    continue
                 if before is None and after is None: continue
                 gap=after-before if before is not None and after is not None else None
                 distance=Geodesic.WGS84.Inverse(old.latest.lat,old.latest.lon,o.lat,o.lon)['s12']

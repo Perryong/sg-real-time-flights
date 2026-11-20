@@ -123,6 +123,83 @@
       "title": "FeedStatus",
       "type": "object"
     },
+    "HistoricalRoute": {
+      "properties": {
+        "provider": {
+          "const": "flyitalyadsb",
+          "default": "flyitalyadsb",
+          "title": "Provider",
+          "type": "string"
+        },
+        "callsign": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Callsign",
+          "type": "string"
+        },
+        "origin": {
+          "pattern": "^[A-Z]{4}$",
+          "title": "Origin",
+          "type": "string"
+        },
+        "destination": {
+          "pattern": "^[A-Z]{4}$",
+          "title": "Destination",
+          "type": "string"
+        },
+        "origin_iata": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Origin Iata"
+        },
+        "destination_iata": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Iata"
+        },
+        "observed_count": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Observed Count",
+          "type": "integer"
+        },
+        "last_seen_day": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Last Seen Day",
+          "type": "string"
+        },
+        "retrieved_at": {
+          "title": "Retrieved At",
+          "type": "number"
+        }
+      },
+      "required": [
+        "callsign",
+        "origin",
+        "destination",
+        "observed_count",
+        "last_seen_day",
+        "retrieved_at"
+      ],
+      "title": "HistoricalRoute",
+      "type": "object"
+    },
     "MovementSummary": {
       "properties": {
         "day": {
@@ -199,6 +276,17 @@
     },
     "Observation": {
       "properties": {
+        "route": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoricalRoute"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "title": "Id",
           "type": "string"

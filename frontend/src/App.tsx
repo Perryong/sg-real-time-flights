@@ -1,4 +1,4 @@
-import { COVERAGE_RADIUS_NM } from "./data/coverage";
+import { COVERAGE_RADIUS_KM } from "./data/coverage";
 import { airportUrl, assetUrl, liveAvailable } from "./data/hosting";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
@@ -276,7 +276,7 @@ export default function App() {
             <span>SINGAPORE</span>
             <span className="slash">/</span>
             <strong>CHANGI</strong>
-            <span className="region-badge">{COVERAGE_RADIUS_NM} NM</span>
+            <span className="region-badge">{COVERAGE_RADIUS_KM} km</span>
           </div>
           <div className="mode-switch" aria-label="Data mode">
             <button
