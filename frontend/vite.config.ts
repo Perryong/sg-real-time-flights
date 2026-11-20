@@ -1,7 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteStaticCopy } from "vite-plugin-static-copy";
-export default defineConfig({
+export default defineConfig(({mode}) => {
+  const base = mode === "pages" ? "/sg-real-time-flights/" : "/";
+  return {
+  base,
   plugins: [
     react(),
     viteStaticCopy({
@@ -12,7 +15,7 @@ export default defineConfig({
       })),
     }),
   ],
-  define: { CESIUM_BASE_URL: JSON.stringify("/cesium/") },
+  define: { CESIUM_BASE_URL: JSON.stringify(`${base}cesium/`) },
   server: {
     port: 5177,
     strictPort: true,
@@ -31,4 +34,5 @@ export default defineConfig({
   },
   build: { chunkSizeWarningLimit: 4000 },
   test: { exclude: ["e2e/**", "node_modules/**"] },
-} as any);
+} as any;
+});

@@ -1,4 +1,5 @@
 import { COVERAGE_RADIUS_NM } from "../data/coverage";
+import { liveAvailable } from "../data/hosting";
 import { useEffect, useRef } from "react";
 import { X, ExternalLink, Layers3 } from "lucide-react";
 import type { Airport, FeedStatus } from "../data/types";
@@ -73,6 +74,7 @@ export default function SourceDetails({
           An honest picture.
         </h2>
         <p>{airport?.caveat ?? "Airport source information is loading."}</p>
+        {!liveAvailable && <p>This GitHub Pages edition is a synthetic demo. Live aircraft require a separately connected live-data server.</p>}
         <div className="source-card">
           <h3>Aircraft observations</h3>
           <dl className="feed-inspection">

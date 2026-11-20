@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Snapshot, Mode } from "../data/types";
 import { acceptSnapshot, isStatus, type StreamState } from "../data/stream";
 import { PlaybackController } from "../data/playback";
+import { fixtureUrl, liveAvailable, socketUrl } from "../data/hosting";
 
 export function useTraffic() {
-  const [mode, setMode] = useState<Mode>("live"),
+  const [mode, setMode] = useState<Mode>(liveAvailable ? "live" : "simulated"),
     [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [transport, setTransport] = useState("connecting"),
     [error, setError] = useState<string | null>(null),
@@ -56,9 +57,9 @@ export function useTraffic() {
       state = { connectionId: id, snapshot: null };
       lastMessage = Date.now();
       setTransport("connecting");
-      socket = new WebSocket(
-        `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/aircraft`,
-      );
+      const url = socketUrl(location.origin);
+      if (!url) { setTransport("unavailable"); return; }
+      socket = new WebSocket(url);
       socket.onmessage = (event) => {
         if (!active() || id !== connectionId) return;
         if (Date.now() - lastMessage > 30000) {
@@ -108,7 +109,7 @@ export function useTraffic() {
     if (mode === "live") connect();
     else
       fetch(
-        `/api/fixtures/${mode === "simulated" ? "changi-demo" : "recorded-test"}`,
+        fixtureUrl(mode),
         { signal: abort.signal },
       )
         .then((r) => {

@@ -109,7 +109,7 @@ export default function MapScene(props: Props) {
         orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       });
       layer.current = new AircraftLayer(viewer, () => latest.current.getNow());
-      fetch("/models/generic-aircraft.glb", { signal: modelAbort.signal })
+      fetch(`${import.meta.env.BASE_URL}models/generic-aircraft.glb`, { signal: modelAbort.signal })
         .then(async (r) => {
           if (!r.ok) throw Error();
           const bytes = await r.arrayBuffer();

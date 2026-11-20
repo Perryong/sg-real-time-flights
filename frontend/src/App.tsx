@@ -1,4 +1,5 @@
 import { COVERAGE_RADIUS_NM } from "./data/coverage";
+import { airportUrl, assetUrl, liveAvailable } from "./data/hosting";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   Radar,
@@ -59,7 +60,7 @@ export default function App() {
   const previousSelection = useRef<Track | null>(null);
   useEffect(() => {
     const c = new AbortController();
-    fetch("/api/airport", { signal: c.signal })
+    fetch(airportUrl, { signal: c.signal })
       .then((r) => {
         if (!r.ok) throw Error();
         return r.json();
@@ -68,7 +69,7 @@ export default function App() {
       .catch(() => {
         if (!c.signal.aborted)
           setMapError(
-            "Airport geometry unavailable. Check that the backend is running.",
+            "Airport geometry unavailable. Refresh the page to try again.",
           );
       });
     return () => c.abort();
@@ -133,7 +134,7 @@ export default function App() {
       className={`app ${night ? "night" : "day"} ${sidebar ? "sidebar-open" : "sidebar-closed"}`}
     >
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Changi Observatory home">
+        <a className="brand" href={assetUrl("")} aria-label="Changi Observatory home">
           <span className="brand-mark">
             <Radar size={25} />
           </span>
@@ -279,6 +280,8 @@ export default function App() {
             <button
               className={feed.mode === "live" ? "active" : ""}
               onClick={() => switchMode("live")}
+              disabled={!liveAvailable}
+              title={liveAvailable ? "Live observations" : "This hosted demo has no live-data server connected"}
             >
               <Radio size={13} /> Live
             </button>

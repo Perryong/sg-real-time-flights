@@ -153,7 +153,7 @@ export class AircraftLayer {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           model: {
-            uri: "/models/generic-aircraft.glb",
+            uri: `${import.meta.env.BASE_URL}models/generic-aircraft.glb`,
             minimumPixelSize: 24,
             maximumScale: 100,
             scale: 1,

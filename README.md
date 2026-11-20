@@ -33,7 +33,17 @@ npm --prefix frontend run build
 npm --prefix frontend run preview
 ```
 
-Preview serves http://127.0.0.1:4177 and proxies `/api` and `/ws` to port 8017. Do not run multiple backend workers: each process would own an upstream poller. Hosted deployment requires a same-origin HTTPS/WSS reverse proxy and explicit origin configuration; deployment is not part of this delivery.
+Preview serves http://127.0.0.1:4177 and proxies `/api` and `/ws` to port 8017. Do not run multiple backend workers: each process would own an upstream poller. Hosted live traffic requires a separate HTTPS/WSS backend and explicit origin configuration; see the GitHub Pages section below.
+
+## GitHub Pages
+
+Public site: https://perryong.github.io/sg-real-time-flights/
+
+GitHub Pages serves the Cesium interface, airport geometry and an explicitly synthetic demo. It cannot run the Python live-data server. With no hosted backend configured, the published page starts in Demo mode and disables Live; the local tracker continues to use its private live sources.
+
+The `Publish Changi Observatory` workflow tests the project, builds the static edition and deploys it on pushes to `main`. To reproduce its frontend build, run `npm --prefix frontend run build:pages`; output is `frontend/dist-pages`. Run `npm --prefix frontend run test:pages` for the repository-path browser check. No provider keys are needed for the Pages build.
+
+For public live tracking, deploy the FastAPI backend separately with private environment variables, allow `https://perryong.github.io` in its `ALLOWED_ORIGINS`, set the repository Actions variable `LIVE_BACKEND_URL` to its HTTPS URL, and rerun the Pages workflow. This URL is public; provider API keys must remain exclusively on the backend. A live outage never switches to synthetic data. Free backend hosts may sleep or restrict background polling; check their limits before selecting one.
 
 ## Explore
 

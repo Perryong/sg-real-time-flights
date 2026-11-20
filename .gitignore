@@ -2,6 +2,8 @@
 .venv/
 node_modules/
 dist/
+dist-pages/
+frontend/public/data/
 .codex-attachments/
 .superpowers/
 __pycache__/

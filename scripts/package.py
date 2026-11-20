@@ -3,7 +3,7 @@ from pathlib import Path
 import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 DIRECTORIES=('backend/app','backend/tests','frontend/src','frontend/public','frontend/e2e','frontend/scripts','data','tests/fixtures','scripts','assets','docs')
-FILES=('README.md','goal.md','.gitignore','.env.example','.nvmrc','.python-version','pytest.ini','backend/pyproject.toml','backend/requirements.lock','frontend/package.json','frontend/package-lock.json','frontend/tsconfig.json','frontend/vite.config.ts','frontend/playwright.config.ts','frontend/index.html')
+FILES=('README.md','goal.md','.gitignore','.env.example','.nvmrc','.python-version','pytest.ini','backend/pyproject.toml','backend/requirements.lock','frontend/package.json','frontend/package-lock.json','frontend/tsconfig.json','frontend/vite.config.ts','frontend/playwright.config.ts','frontend/index.html','frontend/.env.pages','frontend/playwright.pages.config.ts','.github/workflows/pages.yml')
 ALLOWED={'.py','.sh','.mjs','.ts','.tsx','.css','.html','.json','.geojson','.md','.png','.svg','.glb','.toml','.lock'}
 def package(root=ROOT):
     paths={root/name for name in FILES}
