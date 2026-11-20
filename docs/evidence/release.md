@@ -90,3 +90,14 @@ The free FlyItalyADSB source is enabled locally alongside ADSB.fi, checking the 
 At 19:56 SGT, both direct and preview-proxied snapshots were healthy with **24 distinct aircraft**, of which 18 latest positions came from ADSB.fi and six from FlyItalyADSB. No ground aircraft were reported in that snapshot. Winning source counts are not incremental coverage counts. OpenSky remained disabled with zero requests. Both active sources had successful responses. No parked positions are invented.
 
 The key is stored only in ignored, access-restricted backend configuration. The frontend bundle and source files were checked for private credential values. The source archive was rebuilt with content/CRC and credential-exclusion checks. No provider aircraft responses were saved or packaged. No dependencies, push or deployment were added; the local branch and Cesium view are retained.
+
+
+## GitHub publication — 20 November 2026
+
+Repository: https://github.com/Perryong/sg-real-time-flights
+
+Pages: https://perryong.github.io/sg-real-time-flights/
+
+Provider integration was committed as `97e55e9`; Pages support was committed as `92d09d8`. Both were pushed to remote `main`. GitHub Actions run https://github.com/Perryong/sg-real-time-flights/actions/runs/44738555902 succeeded. Public browser verification showed 16 labelled synthetic aircraft, the Cesium map and the 3D view. The Pages edition has no hosted live backend and disables Live; the existing local tracker remains live. Secrets were checked against current source, all Git-history blobs and the Pages bundle before publication.
+
+Verification: 89 backend + 32 frontend + 13 local browser + 1 Pages browser tests passed (135 total); both production builds passed. Independent review corrected an unused workflow permission-dependent step and outdated README deployment wording. Existing Cesium bundle and GitHub action Node-version advisories do not prevent deployment.

@@ -21,8 +21,8 @@
 - [x] Verify and commit existing provider integrations (89 backend, 28 frontend tests).
 - [x] Write failing URL/hosting-mode tests, implement base-aware assets and optional backend URL.
 - [x] Export static geometry/demo, add Pages workflow and verify the Pages build in a browser.
-- [ ] Review, scan secrets, commit and push to the user's GitHub repository.
-- [ ] Deploy Pages, verify its public URL and report live/demo hosting state accurately.
+- [x] Review, scan secrets, commit and push to the user's GitHub repository.
+- [x] Deploy Pages, verify its public URL and report live/demo hosting state accurately.
 
 ## Hosting decision
 Asked whether to include a separate free live backend or publish demo first. Pages preparation and repository work proceed independently while awaiting the answer.
@@ -30,3 +30,6 @@ Asked whether to include a separate free live backend or publish demo first. Pag
 - Final review identified an unnecessary configure-pages step without read permission; removed it because no outputs are consumed. Corrected outdated local-only deployment wording in README. Repository created publicly under Perryong; private source/history/artifact scans passed.
 
 - Verification before publication: 89 backend, 32 frontend, 13 live-app browser and one Pages browser checks passed (135 total). Both production builds passed; existing Cesium bundle-size advisory remains. No runtime provider credentials are configured in GitHub or Pages.
+
+- Published successfully: https://perryong.github.io/sg-real-time-flights/ . GitHub Actions run 44738555902 completed successfully for commit 92d09d8. Public browser verification loaded 16 explicitly synthetic aircraft, Cesium imagery and the 3D toggle. No live backend was configured; the public edition accurately disables Live. Local live sources remain unchanged.
+- Hosting clarification received no answer during publication. The authorized Pages site was published as the clearly labelled demo, as announced; connecting a separate hosted live server remains an optional next step requiring the user's hosting choice.
