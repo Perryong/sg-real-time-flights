@@ -58,7 +58,20 @@ class SourceStatus(BaseModel):
     requests: int = 0
     remaining_credits: int | None = None
 
+class MovementSummary(BaseModel):
+    day: str
+    airport: Literal['WSSS'] = 'WSSS'
+    timezone: Literal['Asia/Singapore'] = 'Asia/Singapore'
+    available: bool = True
+    landings: int = 0
+    takeoffs: int = 0
+    first_observed_at: float | None = None
+    last_observed_at: float | None = None
+    observed_seconds: float = 0
+    unmonitored_seconds: float = 0
+
 class FeedStatus(BaseModel):
+    movements: MovementSummary | None = None
     mode: Mode = 'live'
     upstream_state: str = 'unavailable'
     error_code: str | None = 'configuration_required'

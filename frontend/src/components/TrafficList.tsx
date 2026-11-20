@@ -8,9 +8,12 @@ import {
   Search,
 } from "lucide-react";
 import type { Track, Mode, FeedStatus } from "../data/types";
+import MovementSummary from "./MovementSummary";
 import ProviderCredits from "./ProviderCredits";
 import { freshness } from "../data/freshness";
 interface Props {
+  movements?: FeedStatus["movements"];
+  connected?: boolean;
   sources?: FeedStatus["sources"];
   tracks: Track[];
   selected: string | null;
@@ -73,6 +76,7 @@ export default function TrafficList(p: Props) {
           <span>GROUND</span>
         </div>
       </div>
+      {p.mode === "live" && <MovementSummary counts={p.movements} now={p.now} connected={!!p.connected} />}
       <label className="panel-search">
         <Search size={15} />
         <input

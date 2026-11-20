@@ -38,6 +38,7 @@ def create_app(settings=None, provider=None, clock=time.time):
             finally:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError): await task
+                feed.movements.close()
                 if hasattr(collector,'close'):await collector.close()
     app=FastAPI(title='Changi Observatory',lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=1000)

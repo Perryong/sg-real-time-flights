@@ -6,6 +6,7 @@ import uuid
 from .contracts import FeedStatus, Snapshot, PhaseEstimate
 from .provider import ProviderError
 from .store import TrackStore
+from .movements import MovementLedger
 from .inference import infer_phase
 from .config import ROOT
 import json
@@ -17,6 +18,7 @@ class FeedService:
         self.settings,self.provider,self.clock=settings,provider,clock
         geometry=ROOT/'data/airport/runways.geojson'
         self.runways=json.loads(geometry.read_text())['features'] if geometry.exists() else []
+        self.movements=MovementLedger(settings.movement_db,self.runways)
         self.store=TrackStore(); self.epoch=str(uuid.uuid4()); self.sequence=0
         self.last_attempt=None; self.last_success=None; self.next_retry=None
         self.error='configuration_required' if not settings.live_enabled else None
@@ -34,7 +36,7 @@ class FeedService:
         tracks=self.store.snapshot(now)
         timestamps=[t.latest.position_time for t in tracks if t.latest.position_time is not None]
         last_success=max((s.last_success for s in sources.values() if s.last_success is not None),default=None) if sources else self.last_success
-        return FeedStatus(upstream_state=state,error_code=self.error,sources=sources,
+        return FeedStatus(movements=self.movements.summary(now),upstream_state=state,error_code=self.error,sources=sources,
             message=('Live observations available' if state=='healthy' else
                 'ADSB.fi live polling is disabled. Enable live mode for personal, non-commercial use in the backend configuration.' if self.error=='configuration_required' else
                 'Provider access denied; polling paused. Review configuration and restart.' if self.paused else
@@ -72,10 +74,17 @@ class FeedService:
                 for key,track in self.store.tracks.items():
                     if track.latest.position_time != before.get(key):
                         track.phase=infer_phase(track.history,self.runways,self.clock(),track.phase)
+                sources=self.provider.statuses() if hasattr(self.provider,'statuses') else None
+                success=max((s.last_success for s in sources.values() if s.last_success is not None),default=None) if sources is not None else self.clock()
+                if sources and any(s.enabled and s.error_code and s.last_attempt is not None
+                        and (success is None or s.last_attempt>success) for s in sources.values()):
+                    success=None  # A failed attempt with only cached data is a monitoring gap.
+                self.movements.record(self.store.snapshot(self.clock()),success,self.clock())
                 self.last_success=self.clock(); self.error='partial_data' if result.invalid else None
                 self.counters['invalid']+=result.invalid; self.failures=0
                 self.next_retry=self.clock()+self.settings.poll_seconds
             except ProviderError as e:
+                self.movements.record([],None,self.clock())
                 self.error=e.code; self.paused=e.pause; self.failures+=1
                 delay=e.retry_after if e.retry_after is not None else min(60,self.settings.poll_seconds*2**min(self.failures,4)+random.uniform(0,1))
                 self.next_retry=None if self.paused else self.clock()+max(self.settings.poll_seconds,delay)

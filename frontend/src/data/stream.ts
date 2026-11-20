@@ -57,6 +57,13 @@ export function isStatus(v: unknown): v is FeedStatus {
     typeof v.message === "string" &&
     typeof v.geometry_edition === "string" &&
     object(v.counters) &&
+    (v.movements == null || (object(v.movements) &&
+      typeof v.movements.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.movements.day) &&
+      v.movements.airport === "WSSS" && v.movements.timezone === "Asia/Singapore" &&
+      typeof v.movements.available === "boolean" &&
+      ["landings", "takeoffs"].every(k => Number.isSafeInteger(v.movements[k]) && v.movements[k] >= 0) &&
+      ["observed_seconds", "unmonitored_seconds"].every(k => finite(v.movements[k]) && v.movements[k] >= 0) &&
+      ["first_observed_at", "last_observed_at"].every(k => nullable(v.movements[k])))) &&
     (v.sources === undefined || (object(v.sources) && Object.values(v.sources).every((s) =>
       object(s) && typeof s.enabled === "boolean" && typeof s.state === "string" &&
       (s.error_code === null || typeof s.error_code === "string") &&

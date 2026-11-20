@@ -110,3 +110,12 @@ The owner requested the MacBook as backend and GitHub Pages as frontend. The loc
 Deployment https://github.com/Perryong/sg-real-time-flights/actions/runs/44739688580 succeeded. Public HTTPS health and WebSocket checks passed with the GitHub Pages origin. Browser verification at approximately 20:57 SGT showed LIVE FEED, HEALTHY, connected transport, 32 tracked aircraft and the Cesium 3D geographic view. Counts are point-in-time observations, not complete airport inventory; zero ground tracks were reported. ADSB.fi and FlyItalyADSB are active; OpenSky remains gated off.
 
 The Mac must remain awake, signed in and online. The Quick Tunnel hostname changes when its process restarts, requiring a repository variable update and Pages redeployment. README documents the services, logs and stop/restart instructions.
+
+
+## Daily detected Changi movements — 20 November 2026
+
+Added persistent daily landing/takeoff estimates to the live Traffic panel, using Singapore calendar dates. Conservative repeated runway air/ground transitions are deduplicated in private local SQLite storage, with seven-day retention. Monitoring coverage excludes failed polls, sampling gaps and process downtime. Demo remains isolated, outages retain labelled estimates, and unavailable storage never displays misleading zero totals. Counts start with this collector update and are not retroactive or official airport totals.
+
+Verification: 113 backend tests, 36 frontend tests, 14 browser checks and one Pages browser check passed (164 total); both production builds and whitespace checks passed. Independent review found and verified fixes for a clipped short-phone list and short retry outages incorrectly included in observed time. The phone regression first failed at 375×667, then passed with whole-panel scrolling. Source/build credential scans passed; local runtime storage is excluded from Git and source packaging. Existing Cesium bundle-size and test-runner color advisories remain.
+
+The Mac backend was restarted without changing the public tunnel. Local and public status checks returned healthy feeds and available movement summaries. Initial counts were zero detected events; this does not assert that no flights occurred. Real event-detection accuracy still depends on source coverage and provisional runway geometry; automated event scenarios are synthetic.

@@ -51,7 +51,20 @@ export interface SourceStatus {
   requests: number;
   remaining_credits: number | null;
 }
+export interface MovementCounts {
+  day: string;
+  airport: "WSSS";
+  timezone: "Asia/Singapore";
+  available: boolean;
+  landings: number;
+  takeoffs: number;
+  first_observed_at: number | null;
+  last_observed_at: number | null;
+  observed_seconds: number;
+  unmonitored_seconds: number;
+}
 export interface FeedStatus {
+  movements?: MovementCounts | null;
   sources?: Record<string, SourceStatus>;
   mode: Mode;
   upstream_state: string;

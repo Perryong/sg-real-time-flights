@@ -55,6 +55,14 @@ The temporary tunnel hostname changes whenever the tunnel process restarts. Read
 
 To stop sharing from this Mac, unload the tunnel login service using `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.changi-observatory.tunnel.plist`. The backend service can be unloaded the same way using `com.changi-observatory.backend.plist`. To restart an unloaded service, use `launchctl bootstrap gui/$(id -u)` followed by its plist path. Keep the existing service files private; they contain workstation paths but no provider keys.
 
+## Today’s detected Changi movements
+
+The live Traffic panel shows **Landings detected** and **Takeoffs detected** for the current Singapore calendar day. These are conservative estimates, not official airport totals or counts of all flights in Singapore. Two airborne reports followed by two ground reports, with deceleration and a moving ground position aligned near a Changi runway, support a landing. The reverse transition with repeated climb supports a takeoff. Each adjacent report must be at most 20 seconds apart and use the same identity, source and track session. Unknown ground states, overflights, taxiing and disappearing tracks do not count. Runway geometry remains provisional, and brief repeated detections are deduplicated.
+
+Counts begin when this update starts collecting; earlier flights are not backfilled. Free-source ground coverage can be sparse, so zero detected movements does not mean no flights occurred. Expand **Estimated · partial coverage** to see the monitoring start time, successful feed sampling intervals and unmonitored time since Singapore midnight. Gaps, failures and backend restarts are excluded from observed intervals; feed availability still does not guarantee aircraft coverage. Disconnected clients retain saved estimates with a paused notice; yesterday’s counts are never presented as today’s.
+
+Minimal event identity/type/time and daily coverage are stored in ignored `runtime/movements.sqlite3` on the Mac, retained for seven calendar days. No raw aircraft positions or credentials are stored in this database or published to GitHub; only today’s aggregate summary is served. Counts survive backend restarts. Set backend `MOVEMENT_DB_PATH` to change the storage location. Storage failure shows counts unavailable while the aircraft map continues. Demo/recorded playback never updates or displays live daily counts.
+
 ## Explore
 
 - **Live / Demo:** explicit mode choice. Failure never switches to demo. Demo is an original synthetic scenario, with its own clock and identifiers; it contains no real flights or schedules.

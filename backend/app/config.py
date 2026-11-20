@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @dataclass
 class Settings:
+    movement_db: str = ":memory:"
     live_enabled: bool = False
     poll_seconds: float = 10
     opensky_enabled: bool = False
@@ -27,6 +28,7 @@ class Settings:
         flyitaly_key=os.getenv('FLYITALYADSB_API_KEY','').strip()
         reason='disabled' if not requested else 'permission_required' if not confirmed else 'credentials_required' if not (client_id and client_secret) else ''
         return cls(live_enabled=enabled and personal,
+            movement_db=os.getenv("MOVEMENT_DB_PATH",str(ROOT/"runtime/movements.sqlite3")),
             flyitaly_enabled=os.getenv('FLYITALYADSB_ENABLED')=='true' and bool(flyitaly_key),flyitaly_api_key=flyitaly_key,
             opensky_enabled=not bool(reason),opensky_reason=reason,
             opensky_client_id=client_id,opensky_client_secret=client_secret,

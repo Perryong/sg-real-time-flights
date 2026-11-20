@@ -321,8 +321,11 @@ input {
   height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
+.traffic-panel > * { flex-shrink: 0; }
 .traffic-title {
   display: flex;
   justify-content: space-between;
@@ -1675,3 +1678,16 @@ input {
   overflow-wrap: anywhere;
   text-align: right;
 }
+
+/* Daily estimates sit with traffic totals; keep the aircraft list scrollable. */
+.movement-summary { margin: 0 18px 12px; padding: 12px 0; border-block: 1px solid var(--line); flex-shrink: 0; }
+.movement-heading { display: flex; justify-content: space-between; gap: 8px; font: 9px var(--mono); color: #93aab5; }
+.movement-heading strong { font-weight: 500; letter-spacing: 1px; }
+.movement-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
+.movement-counts > div { display: flex; flex-direction: column; gap: 3px; }
+.movement-counts strong { font: 23px var(--mono); color: var(--lime); }
+.movement-counts span { color: #b4c5cd; font-size: 10px; }
+.movement-summary details { color: #a5b7c1; font-size: 10px; line-height: 1.5; }
+.movement-summary summary { cursor: pointer; color: #c6ba8a; }
+.movement-summary details[open] { max-height: 130px; overflow-y: auto; }
+.movement-summary p { margin-top: 8px; }

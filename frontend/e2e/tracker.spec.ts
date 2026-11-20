@@ -220,3 +220,31 @@ test(`regional overview includes edge aircraft at ${viewport.width}x${viewport.h
   await expect.poll(() => page.evaluate(() => (window as any).__changiBenchmark.visibleCount)).toBe(4);
 });
 }
+
+test('daily movement estimates remain usable on mobile and never appear in demo', async ({page}) => {
+  const now=Date.now()/1000;
+  const frame=structuredClone(fixture.frames[0]);
+  Object.assign(frame,{mode:'live',server_time:now,scenario_time:null,tracks:[]});
+  Object.assign(frame.status,{mode:'live',upstream_state:'healthy',movements:{day:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Singapore',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now*1000)),airport:'WSSS',timezone:'Asia/Singapore',available:true,landings:12,takeoffs:9,first_observed_at:now-600,last_observed_at:now,observed_seconds:590,unmonitored_seconds:1000}});
+  await page.routeWebSocket('**/ws/aircraft',ws=>ws.send(JSON.stringify(frame)));
+  await page.goto('/');
+  const counters=page.getByRole('region',{name:'Changi daily movements'});
+  await expect(counters.getByLabel('Detected landings')).toHaveText('12');
+  await expect(counters.getByLabel('Detected takeoffs')).toHaveText('9');
+  await page.getByRole('button',{name:'3D',exact:true}).click();
+  await expect(page.getByRole('button',{name:'2D',exact:true})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});
+  await expect(counters).toBeVisible();
+  const bounds=await counters.boundingBox();
+  expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(390);
+  await counters.locator('summary').click();
+  await expect(counters.getByText(/Monitoring since/)).toBeVisible();
+  await expect(page.getByRole('textbox',{name:'Search aircraft'})).toBeVisible();
+  await page.setViewportSize({width:375,height:667});
+  await page.locator('.traffic-title').hover();
+  await page.mouse.wheel(0,600);
+  await expect.poll(()=>page.locator('.traffic-panel').evaluate(el=>el.scrollTop)).toBeGreaterThan(0);
+  await page.getByRole('textbox',{name:'Search aircraft'}).fill('TEST');
+  await page.getByRole('button',{name:'Demo',exact:true}).click();
+  await expect(counters).toHaveCount(0);
+});

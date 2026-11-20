@@ -242,6 +242,8 @@ export default function App() {
         <div className="left-panel-wrap">
           {sidebar && (
             <TrafficList
+              movements={upstream?.movements}
+              connected={feed.transport === "connected"}
               sources={upstream?.sources}
               tracks={tracks}
               selected={selected}

@@ -2,6 +2,17 @@
   "$defs": {
     "FeedStatus": {
       "properties": {
+        "movements": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MovementSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "mode": {
           "default": "live",
           "enum": [
@@ -110,6 +121,80 @@
         }
       },
       "title": "FeedStatus",
+      "type": "object"
+    },
+    "MovementSummary": {
+      "properties": {
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "airport": {
+          "const": "WSSS",
+          "default": "WSSS",
+          "title": "Airport",
+          "type": "string"
+        },
+        "timezone": {
+          "const": "Asia/Singapore",
+          "default": "Asia/Singapore",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "available": {
+          "default": true,
+          "title": "Available",
+          "type": "boolean"
+        },
+        "landings": {
+          "default": 0,
+          "title": "Landings",
+          "type": "integer"
+        },
+        "takeoffs": {
+          "default": 0,
+          "title": "Takeoffs",
+          "type": "integer"
+        },
+        "first_observed_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Observed At"
+        },
+        "last_observed_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Observed At"
+        },
+        "observed_seconds": {
+          "default": 0,
+          "title": "Observed Seconds",
+          "type": "number"
+        },
+        "unmonitored_seconds": {
+          "default": 0,
+          "title": "Unmonitored Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "title": "MovementSummary",
       "type": "object"
     },
     "Observation": {
