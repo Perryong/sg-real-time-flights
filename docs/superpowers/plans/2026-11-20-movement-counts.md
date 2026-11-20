@@ -10,4 +10,4 @@ Alternatives: browser-only counts lose history on refresh; official monthly stat
 
 - [x] Backend: failing tests for confirmed transitions, false positives, dedup/restart, Singapore midnight, feed gaps and storage failure; implement movements.py, status contracts and collector integration.
 - [x] Frontend: failing tests for counters, unavailable/stale/date rollover and demo isolation; implement compact MovementSummary in TrafficList and validate optional status payload.
-- [ ] Verify backend/frontend suites, both builds, browser desktop/mobile and Cesium; review change, update docs, restart only backend, commit/push and verify Pages.
+- [x] Verify backend/frontend suites, both builds, browser desktop/mobile and Cesium; review change, update docs, restart only backend, commit/push and verify Pages.
