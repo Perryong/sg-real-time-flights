@@ -1515,7 +1515,7 @@ input {
     padding: 0 10px;
     font-size: 7px;
   }
-  .statusbar > div:first-child > span:not(.status-dot) {
+  .statusbar > div:first-child > span:not(.status-dot):not(.provider-credits) {
     display: none;
   }
   .statusbar > div:last-child > span {

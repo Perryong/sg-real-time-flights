@@ -3,6 +3,36 @@ import fs from "node:fs";
 const fixture = JSON.parse(
   fs.readFileSync("../tests/fixtures/scenarios/changi-demo.json", "utf8"),
 );
+for (const [provider, label] of [["opensky", "OpenSky"], ["flyitalyadsb", "FlyItalyADSB"]]) {
+test(`${label} ground aircraft remain selectable in Cesium 3D with source attribution`, async ({ page }) => {
+  const now = Date.now() / 1000;
+  const frame = structuredClone(fixture.frames[0]);
+  Object.assign(frame, { mode: "live", scenario_time: null, server_time: now });
+  Object.assign(frame.status, { mode: "live", upstream_state: "healthy", sources: {
+    [provider]: { enabled: true, state: "healthy", error_code: null, last_attempt: now, last_success: now, next_retry: now + 30, requests: 1, remaining_credits: 3999 },
+  } });
+  const track = frame.tracks[0];
+  track.id = "live:icao24:abc123";
+  track.latest = { ...track.latest, id: track.id, mode: "live", provider, provider_id: "abc123", callsign: "GROUND TEST", ground: true, lat: 1.36, lon: 103.99, position_time: now, provider_time: now, receipt_time: now };
+  track.history = [track.latest];
+  frame.tracks = [track];
+  await page.routeWebSocket("**/ws/aircraft", ws => ws.send(JSON.stringify(frame)));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Ground", exact: true }).click();
+  await page.getByRole("button", { name: "Select GROUND TEST" }).click();
+  await expect(page.getByRole("region", { name: "Selected aircraft details" }).getByText(provider, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "3D", exact: true }).click();
+  await expect(page.getByRole("button", { name: "2D", exact: true })).toBeVisible();
+  await expect(page.locator(".cesium-widget canvas")).toBeVisible();
+  await expect(page.getByRole("link", { name: label, exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Airborne", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Select GROUND TEST" })).toHaveCount(0);
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.locator(".statusbar").getByRole("link",{name:label,exact:true})).toBeVisible();
+  const sourceButton=await page.getByRole("button",{name:"Sources & accuracy",exact:true}).boundingBox();
+  expect(sourceButton!.x + sourceButton!.width).toBeLessThanOrEqual(390);
+});
+}
 test("live unavailable never invents aircraft; explicit demo is isolated and searchable", async ({
   page,
 }) => {

@@ -18,7 +18,7 @@ class TrackStore:
                 if before is None and after is None: continue
                 gap=after-before if before is not None and after is not None else None
                 distance=Geodesic.WGS84.Inverse(old.latest.lat,old.latest.lon,o.lat,o.lon)['s12']
-                discontinuity=gap is None or gap>20 or distance > max(1000,(gap or 0)*400)
+                discontinuity=old.latest.provider!=o.provider or gap is None or gap>20 or distance > max(1000,(gap or 0)*400)
                 if discontinuity:
                     o=o.model_copy(update={'session_id':str(after or o.receipt_time)})
                     history=[]

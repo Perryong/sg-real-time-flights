@@ -57,6 +57,11 @@ export function isStatus(v: unknown): v is FeedStatus {
     typeof v.message === "string" &&
     typeof v.geometry_edition === "string" &&
     object(v.counters) &&
+    (v.sources === undefined || (object(v.sources) && Object.values(v.sources).every((s) =>
+      object(s) && typeof s.enabled === "boolean" && typeof s.state === "string" &&
+      (s.error_code === null || typeof s.error_code === "string") &&
+      ["last_attempt", "last_success", "next_retry", "remaining_credits"].every(k => nullable(s[k])) &&
+      finite(s.requests)))) &&
     [
       "last_attempt",
       "last_success",

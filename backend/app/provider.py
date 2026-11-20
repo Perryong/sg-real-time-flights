@@ -17,13 +17,18 @@ class ProviderError(Exception):
 
 class AdsbFiProvider:
     URL = 'https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/100'
+    NAME = 'adsb.fi'
+    TIME_DIVISOR = 1000
     def __init__(self, client: httpx.AsyncClient, clock=time.time):
         self.client, self.clock = client, clock
+
+    def headers(self):
+        return {'Accept':'application/json'}
 
     async def fetch(self) -> ProviderResult:
         try:
             async with self.client.stream('GET', self.URL, timeout=5,
-                    headers={'Accept':'application/json'}) as response:
+                    headers=self.headers()) as response:
                 if response.status_code != 200:
                     retry = None
                     if response.status_code == 429:
@@ -40,19 +45,31 @@ class AdsbFiProvider:
                     chunks.append(chunk)
                 import json
                 payload=json.loads(b''.join(chunks))
-        except (httpx.HTTPError, ValueError) as error:
-            raise ProviderError('network_or_json') from error
+        except (httpx.HTTPError, ValueError):
+            raise ProviderError('network_or_json') from None
         if not isinstance(payload,dict) or not isinstance(payload.get('ac'),list) or len(payload['ac'])>10000:
             raise ProviderError('invalid_schema')
         if payload.get('msg', 'No error') != 'No error':
             raise ProviderError('provider_error')
         now=number(payload.get('now'))
-        # ADSB.fi v3 response generation time is milliseconds; seen/seen_pos are seconds.
-        if now is not None: now/=1000
+        # ADSB.fi v3 uses milliseconds; FlyItalyADSB uses seconds. Ages are seconds.
+        if now is not None: now/=self.TIME_DIVISOR
         receipt=self.clock()
         observations=[]; invalid=0
         for raw in payload['ac']:
             o=normalize_record(raw,now,receipt,'live',True)
             if o is None: invalid+=1
-            else: observations.append(o)
+            else: observations.append(o.model_copy(update={'provider':self.NAME,'id':f'live:{self.NAME}:{o.provider_id}'}))
         return ProviderResult(observations,invalid)
+
+class FlyItalyProvider(AdsbFiProvider):
+    URL = 'https://api.flyitalyadsb.com/v2/lat/1.3644/lon/103.9915/dist/185.2'
+    NAME = 'flyitalyadsb'
+    TIME_DIVISOR = 1
+
+    def __init__(self,client,api_key,clock=time.time):
+        super().__init__(client,clock)
+        self.api_key=api_key
+
+    def headers(self):
+        return {'Accept':'application/json','X-Api-Key':self.api_key}

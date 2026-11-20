@@ -100,6 +100,13 @@
           },
           "title": "Counters",
           "type": "object"
+        },
+        "sources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SourceStatus"
+          },
+          "title": "Sources",
+          "type": "object"
         }
       },
       "title": "FeedStatus",
@@ -394,6 +401,89 @@
         }
       },
       "title": "PhaseEstimate",
+      "type": "object"
+    },
+    "SourceStatus": {
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "last_attempt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Attempt"
+        },
+        "last_success": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Success"
+        },
+        "next_retry": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Retry"
+        },
+        "requests": {
+          "default": 0,
+          "title": "Requests",
+          "type": "integer"
+        },
+        "remaining_credits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remaining Credits"
+        }
+      },
+      "required": [
+        "enabled",
+        "state"
+      ],
+      "title": "SourceStatus",
       "type": "object"
     },
     "Track": {

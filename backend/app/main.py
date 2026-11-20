@@ -8,7 +8,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from .config import Settings, ROOT
-from .provider import AdsbFiProvider
+from .provider import AdsbFiProvider, FlyItalyProvider
+from .opensky import OpenSkyGroundProvider
+from .combined import CombinedProvider
 from .service import FeedService
 
 def load_airport():
@@ -25,13 +27,18 @@ def create_app(settings=None, provider=None, clock=time.time):
     @asynccontextmanager
     async def lifespan(app):
         async with httpx.AsyncClient(follow_redirects=False) as client:
-            feed=FeedService(settings,provider or AdsbFiProvider(client,clock),clock)
+            ground=OpenSkyGroundProvider(client,settings.opensky_client_id,settings.opensky_client_secret,clock) if settings.opensky_enabled else None
+            regional=FlyItalyProvider(client,settings.flyitaly_api_key,clock) if settings.flyitaly_enabled else None
+            collector=provider or CombinedProvider(AdsbFiProvider(client,clock),ground,clock,
+                primary_interval=settings.poll_seconds,ground_reason=settings.opensky_reason,regional=regional)
+            feed=FeedService(settings,collector,clock)
             app.state.feed=feed
             task=asyncio.create_task(feed.run())
             try: yield
             finally:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError): await task
+                if hasattr(collector,'close'):await collector.close()
     app=FastAPI(title='Changi Observatory',lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(CORSMiddleware,allow_origins=list(settings.origins),allow_methods=['GET'],allow_headers=['*'])

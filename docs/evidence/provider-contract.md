@@ -31,3 +31,17 @@ At the time of this earlier check, ADSB.fi was not integrated or enabled; that d
 The user requested more complete vicinity coverage after the initial 25 NM release. One 100 NM ADSB.fi response at 23:39 SGT contained 20 positioned aircraft: 10 within 25 NM, 14 within 50 NM, and 20 within 100 NM (counts calculated from that same snapshot). No row reported ground state. This demonstrates the narrower query excluding reported nearby aircraft, not complete receiver coverage.
 
 The fixed query now ends in `/dist/100`. Polling remains shared at ten seconds. No callsign, airline or ground-state filter is applied during ingestion; every valid positioned record is accepted. Frontend All aircraft includes those records until they become lost under the existing freshness rules. Aircraft without reported positions cannot be placed; missing ground aircraft are not invented. A later live browser check showed 20 tracked aircraft and all 20 inside the regional view.
+
+
+## OpenSky integration — 20 November 2026
+
+The optional airport-area ground adapter is implemented with OAuth client credentials, bounded responses, independent source tasks/deadlines, per-source retry and quota state, and newest-position ICAO deduplication. Ground emitter categories are checked using the [official state-vector contract](https://openskynetwork.github.io/opensky-api/rest.html). Unclassified, reserved and non-aircraft contacts are omitted; usable reported positions retain their original times.
+
+Credentials are local backend secrets and are excluded from distribution. Earlier single-request setup verified OAuth and the states endpoint; no continuous OpenSky requests are enabled. Local configuration requests the supplement but leaves `OPENSKY_USE_CONFIRMED=false`, exposing `permission_required` and zero OpenSky polling requests. Clarification of OpenSky live-use permission remains outstanding. ADSB.fi remains the active source; Cesium is retained.
+
+
+## FlyItalyADSB supplement — 20 November 2026
+
+An authenticated request to the official regional endpoint succeeded using the user's privately configured key. The 185.2 km query matches the existing 100 NM view. Response `now` uses UTC seconds, position ages seconds, speed knots and altitude feet. The first comparison returned 20 positioned aircraft, including three identities absent from the concurrent ADSB.fi tracker snapshot, and no Changi ground reports. It demonstrates additional coverage at that instant, not a parked-aircraft inventory.
+
+[Official API documentation](https://flyitalyadsb.com/data/api/) publishes a free allowance of 300,000 requests/month and 30/minute. Local polling is every 30 seconds. [Provider terms](https://flyitalyadsb.com/terms/) permit product use within plan limits, require FlyItalyADSB attribution and CC BY-SA 4.0 for the data, and restrict real-time feed redistribution. The tracker remains local; credentials and real observations are excluded from its source distribution.

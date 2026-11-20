@@ -48,6 +48,16 @@ class Track(BaseModel):
     history: list[Observation]
     phase: PhaseEstimate = Field(default_factory=PhaseEstimate)
 
+class SourceStatus(BaseModel):
+    enabled: bool
+    state: str
+    error_code: str | None = None
+    last_attempt: float | None = None
+    last_success: float | None = None
+    next_retry: float | None = None
+    requests: int = 0
+    remaining_credits: int | None = None
+
 class FeedStatus(BaseModel):
     mode: Mode = 'live'
     upstream_state: str = 'unavailable'
@@ -59,6 +69,7 @@ class FeedStatus(BaseModel):
     newest_position_time: float | None = None
     geometry_edition: str = 'Open geometry · 19 NOV 2026 (provisional)'
     counters: dict[str, int | float] = Field(default_factory=dict)
+    sources: dict[str, SourceStatus] = Field(default_factory=dict)
 
 class Snapshot(BaseModel):
     type: Literal['snapshot'] = 'snapshot'

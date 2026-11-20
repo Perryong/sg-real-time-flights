@@ -7,9 +7,11 @@ import {
   ArrowDownRight,
   Search,
 } from "lucide-react";
-import type { Track, Mode } from "../data/types";
+import type { Track, Mode, FeedStatus } from "../data/types";
+import ProviderCredits from "./ProviderCredits";
 import { freshness } from "../data/freshness";
 interface Props {
+  sources?: FeedStatus["sources"];
   tracks: Track[];
   selected: string | null;
   onSelect: (id: string) => void;
@@ -177,7 +179,7 @@ export default function TrafficList(p: Props) {
         <span className="tiny-dot" />{" "}
         {p.mode === "live" ? (
           <span>
-            <a href="https://adsb.fi/" target="_blank" rel="noreferrer">ADSB.fi</a>
+            <ProviderCredits sources={p.sources} />
             {p.unavailable ? " · unavailable" : " · observations"}
           </span>
         ) : "Synthetic scenario · not real flights"}

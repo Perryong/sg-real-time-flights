@@ -26,14 +26,20 @@ class FeedService:
     def status(self):
         now=self.clock(); age=now-self.last_success if self.last_success is not None else float('inf')
         state='unavailable' if age>60 else ('degraded' if self.error or age>30 else 'healthy')
+        sources=self.provider.statuses() if hasattr(self.provider,'statuses') else {}
+        active=[s for s in sources.values() if s.enabled]
+        if active and self.settings.live_enabled:
+            available=any(s.last_success is not None and now-s.last_success<=60 for s in active)
+            state='unavailable' if not available else 'healthy' if all(s.state=='healthy' for s in active) else 'degraded'
         tracks=self.store.snapshot(now)
         timestamps=[t.latest.position_time for t in tracks if t.latest.position_time is not None]
-        return FeedStatus(upstream_state=state,error_code=self.error,
+        last_success=max((s.last_success for s in sources.values() if s.last_success is not None),default=None) if sources else self.last_success
+        return FeedStatus(upstream_state=state,error_code=self.error,sources=sources,
             message=('Live observations available' if state=='healthy' else
                 'ADSB.fi live polling is disabled. Enable live mode for personal, non-commercial use in the backend configuration.' if self.error=='configuration_required' else
                 'Provider access denied; polling paused. Review configuration and restart.' if self.paused else
-                'Feed interrupted. Positions retain their original timestamps.'),
-            last_attempt=self.last_attempt,last_success=self.last_success,next_retry=self.next_retry,
+                'Some sources are delayed or unavailable. Positions retain their original timestamps.'),
+            last_attempt=self.last_attempt,last_success=last_success,next_retry=self.next_retry,
             newest_position_time=max(timestamps,default=None),
             counters={**self.counters,'clients':len(self.clients),'tracked':len(tracks),'evictions':self.store.evictions})
 
@@ -73,6 +79,8 @@ class FeedService:
                 self.error=e.code; self.paused=e.pause; self.failures+=1
                 delay=e.retry_after if e.retry_after is not None else min(60,self.settings.poll_seconds*2**min(self.failures,4)+random.uniform(0,1))
                 self.next_retry=None if self.paused else self.clock()+max(self.settings.poll_seconds,delay)
+            if hasattr(self.provider,'next_poll_delay'):
+                self.next_retry=self.clock()+self.provider.next_poll_delay()
             self.counters['latency_ms']=round((time.monotonic()-start)*1000,1)
             self.sequence+=1; self.publish()
             log.info('feed_poll',extra={'status':self.error or 'ok','requests':self.counters['requests'],'tracks':len(self.store.tracks)})

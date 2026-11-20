@@ -28,6 +28,7 @@ import {
 import type { CameraAction } from "./scene/MapScene";
 const MapScene = lazy(() => import("./scene/MapScene"));
 import TrafficList from "./components/TrafficList";
+import ProviderCredits from "./components/ProviderCredits";
 import AircraftDetails, { formatTime } from "./components/AircraftDetails";
 import SourceDetails from "./components/SourceDetails";
 import { useTraffic } from "./hooks/useTraffic";
@@ -240,6 +241,7 @@ export default function App() {
         <div className="left-panel-wrap">
           {sidebar && (
             <TrafficList
+              sources={upstream?.sources}
               tracks={tracks}
               selected={selected}
               onSelect={choose}
@@ -508,7 +510,7 @@ export default function App() {
       <footer className="statusbar">
         <div>
           {feed.mode === "live" && (
-            <a href="https://adsb.fi/" target="_blank" rel="noreferrer">ADSB.fi</a>
+            <ProviderCredits sources={upstream?.sources} />
           )}
           <span
             className={`status-dot ${feed.mode !== "live" ? "demo" : upstream?.upstream_state === "healthy" ? "healthy" : "warning"}`}

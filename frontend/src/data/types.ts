@@ -41,7 +41,18 @@ export interface Track {
   history: Observation[];
   phase: PhaseEstimate;
 }
+export interface SourceStatus {
+  enabled: boolean;
+  state: string;
+  error_code: string | null;
+  last_attempt: number | null;
+  last_success: number | null;
+  next_retry: number | null;
+  requests: number;
+  remaining_credits: number | null;
+}
 export interface FeedStatus {
+  sources?: Record<string, SourceStatus>;
   mode: Mode;
   upstream_state: string;
   error_code: string | null;

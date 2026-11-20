@@ -8,3 +8,5 @@
 - Map tiles are requested interactively from OpenStreetMap with visible attribution, standard browser caching/referrer, no bulk downloads or prefetch. Tile usage policy: https://operations.osmfoundation.org/policies/tiles/ . Tiles are not bundled in the ZIP. Public tile service has no availability guarantee.
 
 CAAS information is referenced in research only. No CAAS charts or copied coordinate tables are redistributed. Published terms were checked; permission for the intended redistribution remains unresolved. The authoritative geometry acceptance gate is explicitly unmet.
+
+- Optional live FlyItalyADSB observations: © FlyItalyADSB, https://flyitalyadsb.com/ , CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/ . Coordinates and units are normalized and reports deduplicated for local display. No live records are distributed in this source archive.

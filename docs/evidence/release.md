@@ -70,3 +70,23 @@ The fixed ADSB.fi query and displayed coverage now extend 100 NM (185.2 km) arou
 The region ring and UI labels match the larger query. Cesium fits the overhead geographic rectangle to the actual screen aspect ratio; close-up runway/follow controls remain available. Independent review caught fixed-height framing clipping edge aircraft on wide/portrait layouts. A failing widescreen regression reproduced two of four edge aircraft in view; geographic fitting passed both wide and portrait edge cases. The related transition check now observes a fresh render after switching modes.
 
 Expansion verification: 54 backend tests, 24 frontend tests, 11 browser tests, typecheck and production build pass. No unresolved review findings. The existing Cesium bundle-size advisory remains. Updated source archive contents and CRC verified.
+
+
+## OpenSky ground integration — 20 November 2026
+
+The optional OpenSky airport ground source is integrated with private OAuth, independent scheduling/backoff, strict ground/category/timestamp filtering, source-specific status and ICAO deduplication. Cesium remains the map renderer. A fresh review identified source-coupling, malformed-input isolation, invalid counters, category filtering and status provenance issues; all were corrected with failing-then-passing regressions. Cache-only cycles no longer advance the public last-success time.
+
+Final verification: **85 backend tests, 27 frontend tests and 12 browser tests passed (124 total)**. Typecheck and production build passed. Browser coverage includes a synthetic OpenSky ground aircraft selected in Cesium 3D, the Ground/Airborne filters, source credits, mobile credit visibility, and existing scene/fallback/demo behavior. No new dependencies. The existing Cesium bundle-size advisory remains.
+
+Local backend restarted with the supplement gated off. Both direct and preview-proxied API checks reported ADSB.fi healthy with 15 real tracks and no ground reports at that moment; OpenSky reported `permission_required`, disabled, with zero requests. These counts are a point-in-time check, not a coverage guarantee. Automated tests used synthetic records; no real flight responses or credentials are packaged. Continuous OpenSky activation awaits provider use-permission clarification.
+
+The source archive was refreshed and checked for contents, CRC and exclusion of local credential values. The existing feature branch is retained locally; no push, merge or hosted deployment was performed.
+
+
+## FlyItalyADSB activation — 20 November 2026
+
+The free FlyItalyADSB source is enabled locally alongside ADSB.fi, checking the same 100 NM area every 30 seconds. An independent read-only review found no blocking issues. Verification passed: **89 backend tests, 28 frontend tests, 13 browser tests (130 total)**, typecheck, production build and whitespace checks. The browser suite checks synthetic FlyItalyADSB ground aircraft selection in Cesium 3D, filter behavior, source attribution and mobile footer fit. The existing Cesium bundle-size advisory remains.
+
+At 19:56 SGT, both direct and preview-proxied snapshots were healthy with **24 distinct aircraft**, of which 18 latest positions came from ADSB.fi and six from FlyItalyADSB. No ground aircraft were reported in that snapshot. Winning source counts are not incremental coverage counts. OpenSky remained disabled with zero requests. Both active sources had successful responses. No parked positions are invented.
+
+The key is stored only in ignored, access-restricted backend configuration. The frontend bundle and source files were checked for private credential values. The source archive was rebuilt with content/CRC and credential-exclusion checks. No provider aircraft responses were saved or packaged. No dependencies, push or deployment were added; the local branch and Cesium view are retained.

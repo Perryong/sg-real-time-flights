@@ -2,7 +2,7 @@
 
 A geographic Singapore Changi flight tracker built with React, TypeScript, CesiumJS and FastAPI. Start with a north-up regional map, tilt into 3D, inspect aircraft, follow tracks, and explore sourced airport geometry.
 
-**Release status: personal local tracker with ADSB.fi live observations and Cesium 3D.** The source distribution leaves live polling off until personal use is configured below. Live mode shows only received observations; **Demo** separately explores 16 explicitly labeled synthetic aircraft. Airport geometry and flight-phase estimates remain provisional.
+**Release status: personal local tracker with ADSB.fi, an optional FlyItalyADSB supplement, and Cesium 3D.** The source distribution leaves live polling off until personal use is configured below. Live mode shows only received observations; **Demo** separately explores 16 explicitly labeled synthetic aircraft. Airport geometry and flight-phase estimates remain provisional.
 
 ![Synthetic geographic tracker preview](docs/evidence/overview.png)
 
@@ -62,9 +62,29 @@ ADSBFI_PERSONAL_USE=true
 POLL_SECONDS=10
 ```
 
-The fixed query is `https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/100`. The 100 NM (185.2 km) radius includes Singapore and surrounding Malaysian/Indonesian airspace. All usable reported aircraft positions are accepted; unknown callsigns and ground aircraft are not filtered out. One shared poller serves all browser clients with a five-second timeout, minimum ten-second polling, bounded retry/backoff, `Retry-After` handling, and an automatic pause for 401/403. No automatic provider fallback or arbitrary upstream URL proxy exists. The former Airplanes.live flags are no longer used.
+The fixed query is `https://opendata.adsb.fi/api/v3/lat/1.3644/lon/103.9915/dist/100`. The 100 NM (185.2 km) radius includes Singapore and surrounding Malaysian/Indonesian airspace. All usable reported aircraft positions are accepted; unknown callsigns and ground aircraft are not filtered out. One shared poller serves all browser clients with a five-second timeout, minimum ten-second polling, bounded retry/backoff, `Retry-After` handling, and an automatic pause for 401/403. An optional OpenSky ground supplement is described below; no arbitrary upstream URL proxy exists. The former Airplanes.live flags are no longer used.
 
-ADSB.fi v3 `now` is converted explicitly from milliseconds to UTC seconds. `seen_pos`/`seen` are ages in seconds; missing or invalid timing stays unknown. Altitudes retain their reported references. Live identities use `live:adsb.fi:<id>`; synthetic identities remain separate. Observations are held only in bounded process memory, not written to an aircraft archive. Receiver coverage varies, especially on airport surfaces.
+ADSB.fi v3 `now` is converted explicitly from milliseconds to UTC seconds. `seen_pos`/`seen` are ages in seconds; missing or invalid timing stays unknown. Altitudes retain their reported references. Live identities with a valid ICAO address use `live:icao24:<hex>` across both sources; other identifiers remain provider-specific; synthetic identities remain separate. Observations are held only in bounded process memory, not written to an aircraft archive. Receiver coverage varies, especially on airport surfaces.
+
+## Optional OpenSky ground supplement
+
+The OpenSky adapter is integrated; continuous use remains **off pending clarification of OpenSky live-use permission**. The account credentials are configured privately on the original development machine. The source distribution contains only empty credential placeholders.
+
+After permission is clarified, configure `OPENSKY_ENABLED=true`, `OPENSKY_USE_CONFIRMED=true`, `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` in the backend `.env`, then restart it. Keep the existing live and personal-use flags enabled. Never put credentials into frontend variables or commit `.env`. See [OpenSky API documentation](https://openskynetwork.github.io/opensky-api/rest.html) and [terms](https://opensky-network.org/about/terms-of-use).
+
+One shared collector queries latitude 1.30–1.40, longitude 103.965–104.03 at most every 30 seconds (up to 2,880 small-area requests/day). OAuth tokens remain in process memory and renew before expiry. Each source has independent access-denial, rate-limit and retry handling; a ground-source failure does not stop ADSB.fi. Exhausted credits suspend OpenSky requests for a conservative 24 hours. Sources & accuracy shows its state, remaining credits and retry time.
+
+Only `on_ground=true` reports with valid airport-area positions no more than 120 seconds old are accepted. Surface vehicles, obstacles, reserved categories and contacts with no aircraft-category information are excluded. This conservative filter can omit legitimate aircraft whose category is missing. Aircraft sharing an ICAO address appear once, using the newest reported position; ADSB.fi wins ties. Source changes reset interpolation history. Cesium and the Ground filter display these observations using the same existing aircraft rendering, with source attribution in selected details.
+
+This is **not a parked-aircraft inventory**. Aircraft with no transmitted/received position cannot be added reliably, and an on-ground report does not confirm a landing or a parking stand. No missing positions are invented.
+
+## Optional FlyItalyADSB regional supplement
+
+The free FlyItalyADSB adapter adds reported aircraft over the same 100 NM (185.2 km) area while retaining ADSB.fi and Cesium. Get a free key from [FlyItalyADSB](https://flyitalyadsb.com/data/api/), place `FLYITALYADSB_API_KEY` in the private backend `.env`, set `FLYITALYADSB_ENABLED=true`, and restart the backend. Existing live/personal-use settings remain required. Never put the key in a frontend variable or commit it.
+
+One shared collector polls every 30 seconds (at most 89,280 requests over 31 days), within the published free allowance of 300,000 requests/month and 30/minute. The radius parameter uses kilometres; response timestamps use seconds. Source health and retry state appear in Sources & accuracy. The newest source position wins for each ICAO identity, and a source change resets interpolation history. Ground reports are included when available; no parked positions are inferred. Quota/access denials stop only this source; ADSB.fi continues.
+
+Data attribution: [FlyItalyADSB](https://flyitalyadsb.com/), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Live data stays in bounded memory and is not bundled in the source archive. This configuration is for the local tracker, not a redistributed real-time data service. [Provider terms](https://flyitalyadsb.com/terms/).
 
 ## Time and data integrity
 
