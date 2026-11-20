@@ -10,4 +10,4 @@ Traffic panel: add a labelled direction dropdown (all/inbound/outbound/unknown),
 
 - [x] Backend tests first: wider query, valid/invalid route parsing, cross-source matching, callsign mismatch and metadata-only updates. Add optional contract and regenerate schema.
 - [x] Frontend tests first: conservative direction classifier, route validation, filtering/details/links, demo isolation. Update map extent and source descriptions.
-- [ ] Full backend/frontend/build/browser checks, independent review, live smoke, commit/push, restart backend and verify Pages. Keep credentials and runtime database private.
+- [x] Full backend/frontend/build/browser checks, independent review, live smoke, commit/push, restart backend and verify Pages. Keep credentials and runtime database private.
