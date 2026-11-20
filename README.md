@@ -39,11 +39,21 @@ Preview serves http://127.0.0.1:4177 and proxies `/api` and `/ws` to port 8017. 
 
 Public site: https://perryong.github.io/sg-real-time-flights/
 
-GitHub Pages serves the Cesium interface, airport geometry and an explicitly synthetic demo. It cannot run the Python live-data server. With no hosted backend configured, the published page starts in Demo mode and disables Live; the local tracker continues to use its private live sources.
+GitHub Pages serves the Cesium interface, airport geometry and an explicitly synthetic demo. The published frontend is configured to receive live aircraft from the owner’s MacBook over an HTTPS tunnel; GitHub Pages itself does not run Python. If no backend URL is configured at build time, the page starts in Demo mode and disables Live. An outage of a configured live backend stays a live-data outage and never substitutes demo flights.
 
 The `Publish Changi Observatory` workflow tests the project, builds the static edition and deploys it on pushes to `main`. To reproduce its frontend build, run `npm --prefix frontend run build:pages`; output is `frontend/dist-pages`. Run `npm --prefix frontend run test:pages` for the repository-path browser check. No provider keys are needed for the Pages build.
 
 For public live tracking, deploy the FastAPI backend separately with private environment variables, allow `https://perryong.github.io` in its `ALLOWED_ORIGINS`, set the repository Actions variable `LIVE_BACKEND_URL` to its HTTPS URL, and rerun the Pages workflow. This URL is public; provider API keys must remain exclusively on the backend. A live outage never switches to synthetic data. Free backend hosts may sleep or restrict background polling; check their limits before selecting one.
+
+## MacBook as the live server
+
+The current setup runs the backend on the owner’s Mac, bound to `127.0.0.1:8017`, with GitHub Pages allowed as origin `https://perryong.github.io`. Provider keys stay in the Mac’s ignored `.env`. GitHub stores only the public HTTPS address in the Actions variable `LIVE_BACKEND_URL`.
+
+Two user login services were installed locally: `com.changi-observatory.backend` (Python server) and `com.changi-observatory.tunnel` (Cloudflare Quick Tunnel). Their plists are in `~/Library/LaunchAgents/`, with logs in `~/Library/Logs/ChangiObservatory/`. They restart failed processes and start when the owner logs in. Keep the Mac awake, signed in and connected to the internet. Closing the lid, sleeping, logging out or losing connectivity interrupts live aircraft; the static frontend remains available.
+
+The temporary tunnel hostname changes whenever the tunnel process restarts. Read the new `https://…trycloudflare.com` address from `tunnel-error.log`, update `LIVE_BACKEND_URL` in the GitHub repository’s Actions variables, and run **Publish Changi Observatory** again. The backend is a read-only public flight-data service; its HTTPS address is intentionally visible in the frontend. A stable Tailscale Funnel address is an available next step after account-owner activation.
+
+To stop sharing from this Mac, unload the tunnel login service using `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.changi-observatory.tunnel.plist`. The backend service can be unloaded the same way using `com.changi-observatory.backend.plist`. To restart an unloaded service, use `launchctl bootstrap gui/$(id -u)` followed by its plist path. Keep the existing service files private; they contain workstation paths but no provider keys.
 
 ## Explore
 

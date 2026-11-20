@@ -101,3 +101,12 @@ Pages: https://perryong.github.io/sg-real-time-flights/
 Provider integration was committed as `97e55e9`; Pages support was committed as `92d09d8`. Both were pushed to remote `main`. GitHub Actions run https://github.com/Perryong/sg-real-time-flights/actions/runs/44738555902 succeeded. Public browser verification showed 16 labelled synthetic aircraft, the Cesium map and the 3D view. The Pages edition has no hosted live backend and disables Live; the existing local tracker remains live. Secrets were checked against current source, all Git-history blobs and the Pages bundle before publication.
 
 Verification: 89 backend + 32 frontend + 13 local browser + 1 Pages browser tests passed (135 total); both production builds passed. Independent review corrected an unused workflow permission-dependent step and outdated README deployment wording. Existing Cesium bundle and GitHub action Node-version advisories do not prevent deployment.
+
+
+## MacBook live hosting — 20 November 2026
+
+The owner requested the MacBook as backend and GitHub Pages as frontend. The local Python server and Cloudflare Quick Tunnel now run as user login services. GitHub Pages origin is allowed; provider credentials remain only in ignored local configuration. The public tunnel URL is configured as the repository Actions variable `LIVE_BACKEND_URL`. Tailscale Funnel requires account-owner activation and was not enabled.
+
+Deployment https://github.com/Perryong/sg-real-time-flights/actions/runs/44739688580 succeeded. Public HTTPS health and WebSocket checks passed with the GitHub Pages origin. Browser verification at approximately 20:57 SGT showed LIVE FEED, HEALTHY, connected transport, 32 tracked aircraft and the Cesium 3D geographic view. Counts are point-in-time observations, not complete airport inventory; zero ground tracks were reported. ADSB.fi and FlyItalyADSB are active; OpenSky remains gated off.
+
+The Mac must remain awake, signed in and online. The Quick Tunnel hostname changes when its process restarts, requiring a repository variable update and Pages redeployment. README documents the services, logs and stop/restart instructions.
