@@ -18,7 +18,8 @@ test(`${label} ground aircraft remain selectable in Cesium 3D with source attrib
   frame.tracks = [track];
   await page.routeWebSocket("**/ws/aircraft", ws => ws.send(JSON.stringify(frame)));
   await page.goto("/");
-  await page.getByRole("button", { name: "Ground", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Ground", exact: true })).toHaveCount(0);
+  await expect(page.locator(".summary-grid").getByText("GROUND", {exact:true})).toHaveCount(0);
   await page.getByRole("button", { name: "Select GROUND TEST" }).click();
   await expect(page.getByRole("region", { name: "Selected aircraft details" }).getByText(provider, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "3D", exact: true }).click();

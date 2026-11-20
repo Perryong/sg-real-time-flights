@@ -371,7 +371,7 @@ input {
 }
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   margin: 0 20px 23px;
   padding: 18px 0 0;
   border-top: 1px solid var(--line);

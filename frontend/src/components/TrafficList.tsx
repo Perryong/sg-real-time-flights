@@ -35,10 +35,7 @@ export default function TrafficList(p: Props) {
   const filtered = p.tracks.filter(
     (t) =>
       (p.mode !== "live" || direction === "all" || changiIntent(t.latest,p.now) === direction) &&
-      (p.filter === "all" ||
-        (p.filter === "airborne"
-          ? t.latest.ground === false
-          : t.latest.ground === true)) &&
+      (p.filter === "all" || (p.filter === "airborne" && t.latest.ground === false)) &&
       `${t.latest.callsign ?? ""} ${t.latest.provider_id} ${t.latest.registration ?? ""}`
         .toLowerCase()
         .includes(p.query.toLowerCase()),
@@ -71,15 +68,6 @@ export default function TrafficList(p: Props) {
           </strong>
           <span>AIRBORNE</span>
         </div>
-        <div>
-          <strong>
-            {p.tracks
-              .filter((t) => t.latest.ground === true)
-              .length.toString()
-              .padStart(2, "0")}
-          </strong>
-          <span>GROUND</span>
-        </div>
       </div>
       {p.mode === "live" && <MovementSummary counts={p.movements} now={p.now} connected={!!p.connected} />}
       <label className="panel-search">
@@ -93,7 +81,7 @@ export default function TrafficList(p: Props) {
         <kbd>/</kbd>
       </label>
       <div className="tabs" aria-label="Traffic filter">
-        {["all", "airborne", "ground"].map((f) => (
+        {["all", "airborne"].map((f) => (
           <button
             key={f}
             className={p.filter === f ? "active" : ""}
