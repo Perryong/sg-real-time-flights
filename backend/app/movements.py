@@ -10,7 +10,8 @@ from .runway_math import relative_position, angle_difference
 
 SGT = ZoneInfo('Asia/Singapore')
 Day = Annotated[str, Field(pattern=r'^\d{4}-\d{2}-\d{2}$')]
-Stamp = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+# Keep persisted times inside datetime's supported calendar (through year 9998).
+Stamp = Annotated[float, Field(ge=0, le=253370736000, allow_inf_nan=False)]
 
 
 class LedgerState(BaseModel):

@@ -224,3 +224,12 @@ def test_invalid_saved_ledger_is_rejected_without_replacing_counts(saved):
     with pytest.raises(ValueError): ledger.restore_state(saved)
     assert ledger.summary(NOW+30).landings==1
     ledger.close()
+
+
+def test_out_of_range_saved_timestamp_is_a_validation_error():
+    ledger=MovementLedger(':memory:',RUNWAYS)
+    ledger.record([track()],NOW+30,NOW+30)
+    saved=ledger.export_state();saved['events'][0][2]=1e20
+    with pytest.raises(ValueError):ledger.restore_state(saved)
+    assert ledger.summary(NOW+30).landings==1
+    ledger.close()

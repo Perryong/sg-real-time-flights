@@ -85,14 +85,21 @@ class CloudFeed:
         try:
             if 'movements' in previous:
                 feed.movements.restore_state(previous['movements'])
+            elif previous.get('snapshot',{}).get('status',{}).get('movements') is not None:
+                raise ValueError('Saved movement ledger missing')
             if previous.get('snapshot'):
                 old = Snapshot.model_validate(previous['snapshot'])
+                if 'movements' in previous:
+                    restored = feed.movements.summary(old.server_time)
+                    if old.status.movements is None or restored.model_dump(exclude={'unmonitored_seconds'}) != old.status.movements.model_dump(exclude={'unmonitored_seconds'}):
+                        raise ValueError('Saved movement ledger disagrees with snapshot')
                 feed.epoch, feed.sequence = old.epoch, old.sequence
                 feed.store.tracks = OrderedDict((t.id,t) for t in old.tracks)
             await feed.poll_once()
             while provider.pending:
                 await feed.poll_once()
             frame = feed.snapshot()
+            frame.status.movements = feed.movements.summary(frame.server_time)
             frame.status.collection_mode = 'on_demand'
             frame.status.message = 'Shared updates while viewing · daily detected counts have partial coverage'
             for track in frame.tracks:

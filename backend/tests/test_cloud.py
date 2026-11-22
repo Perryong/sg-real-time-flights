@@ -283,3 +283,39 @@ async def test_cloud_upgrade_initializes_missing_ledger_but_rejects_corrupt_save
         # Failed reads must leave the stored ledger untouched, never replace it with zero.
         command('DEL',cache.prefix+':lease')
         assert (await cache.claim('check')).state['movements']=={}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('damage',['missing','events','coverage'])
+async def test_damaged_ledger_with_existing_summary_never_resets_saved_totals(cache_factory,command,damage):
+    from backend.app.cloud import CloudFeed
+    from backend.app.config import Settings
+    from backend.app.provider import ProviderResult
+    from backend.tests.test_movements import NOW,track,RUNWAYS
+    from backend.app.movements import MovementLedger
+    cache=cache_factory();now=[NOW]
+    class Provider:
+        calls=0
+        async def fetch(self):self.calls+=1;return ProviderResult([],0)
+    provider=Provider()
+    async with httpx.AsyncClient() as client:
+        def feed():return CloudFeed(cache,client,Settings(live_enabled=True),clock=lambda:now[0],providers=(provider,None))
+        await feed().snapshot('first')
+        command('DEL',cache.prefix+':ready')
+        claim=await cache.claim('damage');damaged=claim.state
+        ledger=MovementLedger(':memory:',RUNWAYS)
+        ledger.record([track(start=NOW-30)],NOW,NOW)
+        damaged['movements']=ledger.export_state()
+        damaged['snapshot']['status']['movements']=ledger.summary(NOW).model_dump(mode='json')
+        ledger.close()
+        if damage=='missing':damaged.pop('movements')
+        else:damaged['movements'][damage]=[]
+        assert await cache.publish(claim.token,damaged)
+        command('DEL',cache.prefix+':ready');now[0]+=15
+        with pytest.raises(ValueError):await feed().snapshot('reader')
+        assert provider.calls==1
+        command('DEL',cache.prefix+':lease')
+        stored=(await cache.claim('inspect')).state
+        assert stored['snapshot']['status']['movements']['landings']==1
+        if damage=='missing':assert 'movements' not in stored
+        else:assert stored['movements'][damage]==[]

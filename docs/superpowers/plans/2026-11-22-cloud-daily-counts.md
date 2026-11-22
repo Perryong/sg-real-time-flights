@@ -1,6 +1,6 @@
 # Cloud Daily Counts Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Retain daily detected Changi movement counts in the free cloud tracker.
 **Architecture:** Serialize the existing in-memory movement ledger into the lease-protected shared state; render current-day summaries on every response. Reuse the existing UI with explicit viewing-only coverage.
@@ -20,14 +20,19 @@ Free existing services only; no Mac, new dependency or background collection. Ke
 ### Task 1: Persist movement ledger with the shared snapshot
 **Files:** backend/app/movements.py, backend/app/cloud.py, backend/tests/test_movements.py, backend/tests/test_cloud.py.
 **Interfaces:** MovementLedger.export_state() -> dict; restore_state(state: dict) -> None. JSON contains events, coverage and continuity. CloudFeed.render updates MovementSummary for current Singapore day.
-- [ ] Add failing tests: restore/duplicate/coverage/retention/corrupt state; cloud instances, concurrent cached readers, failure recovery, midnight and migration. Run `.venv/bin/python -m pytest backend/tests/test_movements.py backend/tests/test_cloud.py -q`; expect failures for missing persistence.
-- [ ] Implement minimal validated JSON export/restore; restore before polling and atomically publish ledger with snapshot, preserving it in source checkpoints. Derive cached summary day/age at render time. Health reports durable counts.
-- [ ] Run full backend suite; expect all passing. Commit task.
+- [x] Add failing tests: restore/duplicate/coverage/retention/corrupt state; cloud instances, concurrent cached readers, failure recovery, midnight and migration. Run `.venv/bin/python -m pytest backend/tests/test_movements.py backend/tests/test_cloud.py -q`; expect failures for missing persistence.
+- [x] Implement minimal validated JSON export/restore; restore before polling and atomically publish ledger with snapshot, preserving it in source checkpoints. Derive cached summary day/age at render time. Health reports durable counts.
+- [x] Run full backend suite; expect all passing. Commit task.
 
 ### Task 2: Show partial daily counts and deploy
 **Files:** frontend/src/components/MovementSummary.tsx and .test.tsx, frontend/e2e/cloud-pages.spec.ts, README.md.
 **Interfaces:** Existing MovementCounts and onDemand prop; no contract changes.
-- [ ] Add failing cloud component tests for saved counts, paused/unavailable/midnight states. Run frontend suite; expect cloud counts hidden failures.
-- [ ] Reuse existing panel; add “Detected today · partial coverage” and collection-only-while-viewing explanation; update Pages browser fixture/assertions and README.
+- [x] Add failing cloud component tests for saved counts, paused/unavailable/midnight states. Run frontend suite; expect cloud counts hidden failures.
+- [x] Reuse existing panel; add “Detected today · partial coverage” and collection-only-while-viewing explanation; update Pages browser fixture/assertions and README.
 - [ ] Run backend/frontend suites, Pages build, cloud Pages/Cesium browser test and diff check; expect all passing. Commit task.
 - [ ] Fresh independent branch review, fix important issues with regression tests. Create PR closing #1, deploy allowlisted backend, automatically merge after verification, wait Pages and check live counts/3D. Record results.
+
+## Verification record
+- Initial baseline: 137 backend tests. Test-first checks failed for missing persistence and hidden cloud counters before implementation.
+- Independent review found missing/truncated ledger recovery could reset counts; regression tests now require snapshot/ledger agreement before polling. Out-of-calendar timestamps are rejected as validation errors.
+- Deployment/merge authorized by user; existing clean checkout used on a new branch. No new service, Redis request or background collector added.
