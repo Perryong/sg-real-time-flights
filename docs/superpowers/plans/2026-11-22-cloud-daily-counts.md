@@ -29,11 +29,12 @@ Free existing services only; no Mac, new dependency or background collection. Ke
 **Interfaces:** Existing MovementCounts and onDemand prop; no contract changes.
 - [x] Add failing cloud component tests for saved counts, paused/unavailable/midnight states. Run frontend suite; expect cloud counts hidden failures.
 - [x] Reuse existing panel; add “Detected today · partial coverage” and collection-only-while-viewing explanation; update Pages browser fixture/assertions and README.
-- [ ] Run backend/frontend suites, Pages build, cloud Pages/Cesium browser test and diff check; expect all passing. Commit task.
-- [ ] Fresh independent branch review, fix important issues with regression tests. Create PR closing #1, deploy allowlisted backend, automatically merge after verification, wait Pages and check live counts/3D. Record results.
+- [x] Run backend/frontend suites, Pages build, cloud Pages/Cesium browser test and diff check; expect all passing. Commit task.
+- [x] Fresh independent branch review, fix important issues with regression tests. Create PR closing #1, deploy allowlisted backend, automatically merge after verification, wait Pages and check live counts/3D. Record results.
 
 ## Verification record
 - Initial baseline: 137 backend tests. Test-first checks failed for missing persistence and hidden cloud counters before implementation.
 - Independent review found missing/truncated ledger recovery could reset counts; regression tests now require snapshot/ledger agreement before polling. Out-of-calendar timestamps are rejected as validation errors.
 - Deployment/merge authorized by user; existing clean checkout used on a new branch. No new service, Redis request or background collector added.
 - Final local verification: 151 backend tests, 53 frontend tests, Pages build and cloud Pages/Cesium browser check passed. Existing rate-limit test now accounts for Redis minute rollover.
+- Production: backend deployment `dpl_5T11BBBnoCnR3iq3sjewu1P3qUo5` verified HTTP 200 with durable counters; refreshes preserved the monitoring start. PR #2 merged as `21cbf25`, closing issue #1. Pages workflow `44986217292` succeeded. Published counts, partial-coverage explanation, monitoring gaps and Cesium 3D verified. Mac backend and tunnel remain unloaded.
