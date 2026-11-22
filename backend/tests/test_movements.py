@@ -179,3 +179,48 @@ def test_old_success_cannot_restart_coverage_after_failure():
     ledger.record([],NOW+20,NOW+20)
     assert ledger.summary(NOW+20).observed_seconds==0
     ledger.close()
+
+
+def test_exported_ledger_restores_counts_and_only_contiguous_coverage():
+    import json
+    ledger=MovementLedger(':memory:',RUNWAYS)
+    ledger.record([track()],NOW+30,NOW+30)
+    saved=json.loads(json.dumps(ledger.export_state()))
+    ledger.close()
+    restored=MovementLedger(':memory:',RUNWAYS)
+    restored.restore_state(saved)
+    restored.record([track()],NOW+45,NOW+45)
+    s=restored.summary(NOW+45)
+    assert s.landings==1 and s.observed_seconds==15
+    restored.record([],NOW+600,NOW+600)
+    assert restored.summary(NOW+600).observed_seconds==15
+    restored.record([],None,NOW+610)
+    saved=restored.export_state();restored.close()
+    resumed=MovementLedger(':memory:',RUNWAYS);resumed.restore_state(saved)
+    resumed.record([],NOW+620,NOW+620)
+    assert resumed.summary(NOW+620).observed_seconds==15
+    resumed.close()
+
+
+def test_export_retains_seven_singapore_days_and_rolls_midnight():
+    ledger=MovementLedger(':memory:',RUNWAYS)
+    for day in range(9):
+        stamp=NOW+day*86400
+        ledger.record([track(start=stamp)],stamp+30,stamp+30)
+    saved=ledger.export_state();ledger.close()
+    restored=MovementLedger(':memory:',RUNWAYS);restored.restore_state(saved)
+    assert restored.summary(NOW).landings==0
+    assert restored.summary(NOW+2*86400).landings==1
+    assert restored.summary(NOW+8*86400).landings==1
+    assert restored.summary(NOW+9*86400).landings==0
+    restored.close()
+
+
+@pytest.mark.parametrize('saved', [None, {}, {'events':[['x','landing','bad','2026-11-20']]},
+    {'events':[], 'coverage':[['2026-11-20',NOW,NOW,float('nan')]],'last_success_seen':None,'previous_success':None}])
+def test_invalid_saved_ledger_is_rejected_without_replacing_counts(saved):
+    ledger=MovementLedger(':memory:',RUNWAYS)
+    ledger.record([track()],NOW+30,NOW+30)
+    with pytest.raises(ValueError): ledger.restore_state(saved)
+    assert ledger.summary(NOW+30).landings==1
+    ledger.close()

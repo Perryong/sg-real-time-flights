@@ -107,7 +107,8 @@ async def test_shared_snapshots_preserve_backoff_history_and_original_timestamps
         cached = await feed().snapshot('viewer')
         assert primary.calls == 1 and regional.calls == 1
         assert first.epoch == cached.epoch and first.sequence == cached.sequence
-        assert first.status.collection_mode == 'on_demand' and first.status.movements is None
+        assert first.status.collection_mode == 'on_demand'
+        assert first.status.movements.landings == first.status.movements.takeoffs == 0
         stamp = first.tracks[0].latest.position_time
         now[0] += 16; command('DEL',cache.prefix+':ready')
         second = await feed().snapshot('viewer')
@@ -169,3 +170,116 @@ def test_cloud_http_errors_are_safe_and_retryable(monkeypatch,limited,expected):
         assert 'token' not in response.text.lower()
         assert client.get('/api/aircraft?latitude=0').status_code==400
         assert client.get('/api/health',headers={'Origin':'https://evil.example'}).headers.get('access-control-allow-origin') is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind',['landing','takeoff'])
+async def test_cloud_movements_survive_instances_cached_viewers_and_idle_midnight(cache_factory,command,kind):
+    from backend.tests.test_movements import track,NOW
+    from backend.app.cloud import CloudFeed
+    from backend.app.config import Settings
+    from backend.app.provider import ProviderResult,ProviderError
+    now=[NOW]
+    samples=track(kind).history
+    for i,o in enumerate(samples):
+        o.position_time=o.receipt_time=NOW+i*15
+    class Provider:
+        calls=0
+        failed=False
+        async def fetch(self):
+            self.calls+=1
+            if self.failed: raise ProviderError('timeout')
+            return ProviderResult([samples[min(self.calls-1,3)]],0)
+    provider=Provider();cache=cache_factory()
+    async with httpx.AsyncClient() as client:
+        def feed():return CloudFeed(cache_factory(cache.prefix),client,Settings(live_enabled=True),clock=lambda:now[0],providers=(provider,None))
+        for i in range(4):
+            now[0]=NOW+i*15;command('DEL',cache.prefix+':ready')
+            frame=await feed().snapshot(str(i))
+        counts=frame.status.movements
+        assert counts is not None
+        assert getattr(counts,kind+'s')==1
+        assert counts.observed_seconds==45
+        cached=await asyncio.gather(*(feed().snapshot('reader'+str(i)) for i in range(5)))
+        assert all(getattr(f.status.movements,kind+'s')==1 for f in cached)
+        assert provider.calls==4
+        now[0]+=600;provider.failed=True;command('DEL',cache.prefix+':ready')
+        failed=await feed().snapshot('failed')
+        assert getattr(failed.status.movements,kind+'s')==1
+        assert failed.status.movements.observed_seconds==45
+        assert failed.status.movements.unmonitored_seconds==12*3600+600
+        now[0]=NOW+12*3600+5  # Singapore midnight + 5, with no refresh.
+        midnight=await feed().snapshot('midnight')
+        assert midnight.status.movements.day=='2026-11-21'
+        assert midnight.status.movements.landings==midnight.status.movements.takeoffs==0
+        assert midnight.status.movements.first_observed_at is None
+        assert midnight.status.movements.unmonitored_seconds==5
+
+
+@pytest.mark.asyncio
+async def test_failed_cloud_publish_recovers_pending_event_without_losing_saved_ledger(cache_factory,command):
+    from backend.tests.test_movements import track,NOW
+    from backend.app.cloud import CloudFeed
+    from backend.app.cloud_cache import CacheUnavailable
+    from backend.app.config import Settings
+    from backend.app.provider import ProviderResult
+    now=[NOW];cache=cache_factory();samples=track().history
+    for i,o in enumerate(samples):o.position_time=o.receipt_time=NOW+i*15
+    class Provider:
+        calls=0
+        async def fetch(self):
+            self.calls+=1
+            return ProviderResult([samples[min(self.calls-1,3)]],0)
+    provider=Provider()
+    async with httpx.AsyncClient() as client:
+        def feed():return CloudFeed(cache,client,Settings(live_enabled=True),clock=lambda:now[0],providers=(provider,None))
+        for i in range(3):
+            now[0]=NOW+i*15;command('DEL',cache.prefix+':ready');await feed().snapshot(str(i))
+        original=cache.publish
+        async def expired_owner(token,state):
+            command('DEL',cache.prefix+':lease')
+            return await original(token,state)
+        cache.publish=expired_owner;now[0]=NOW+45;command('DEL',cache.prefix+':ready')
+        with pytest.raises(CacheUnavailable):await feed().snapshot('expired')
+        cache.publish=original;now[0]+=1
+        recovered=await feed().snapshot('new-owner')
+        assert recovered.status.movements.landings==1
+        assert recovered.status.movements.observed_seconds==45
+        repeated=await feed().snapshot('cached')
+        assert repeated.status.movements.landings==1
+        assert provider.calls==4
+
+
+@pytest.mark.asyncio
+async def test_cloud_upgrade_initializes_missing_ledger_but_rejects_corrupt_saved_counts(cache_factory,command):
+    from backend.app.cloud import CloudFeed
+    from backend.app.config import Settings
+    from backend.app.provider import ProviderResult
+    from backend.tests.test_movements import NOW
+    cache=cache_factory();now=[NOW]
+    class Provider:
+        calls=0
+        async def fetch(self):self.calls+=1;return ProviderResult([],0)
+    provider=Provider()
+    async with httpx.AsyncClient() as client:
+        def feed():return CloudFeed(cache,client,Settings(live_enabled=True),clock=lambda:now[0],providers=(provider,None))
+        first=await feed().snapshot('first')
+        command('DEL',cache.prefix+':ready')
+        claim=await cache.claim('upgrade');old=claim.state
+        old.pop('movements');old['snapshot']['status']['movements']=None
+        assert await cache.publish(claim.token,old)
+        now[0]+=15;command('DEL',cache.prefix+':ready')
+        migrated=await feed().snapshot('upgrade-reader')
+        assert migrated.status.movements.available
+        assert migrated.status.movements.first_observed_at==now[0]
+        command('DEL',cache.prefix+':ready')
+        claim=await cache.claim('corrupt');broken=claim.state
+        broken['movements']={}
+        assert await cache.publish(claim.token,broken)
+        command('DEL',cache.prefix+':ready');now[0]+=15
+        before=provider.calls
+        with pytest.raises(ValueError):await feed().snapshot('bad-ledger')
+        assert provider.calls==before
+        # Failed reads must leave the stored ledger untouched, never replace it with zero.
+        command('DEL',cache.prefix+':lease')
+        assert (await cache.claim('check')).state['movements']=={}

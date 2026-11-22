@@ -3,10 +3,22 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import sqlite3
 from zoneinfo import ZoneInfo
+from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field
 from .contracts import MovementSummary
 from .runway_math import relative_position, angle_difference
 
 SGT = ZoneInfo('Asia/Singapore')
+Day = Annotated[str, Field(pattern=r'^\d{4}-\d{2}-\d{2}$')]
+Stamp = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+
+
+class LedgerState(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    events: list[tuple[str, Literal['landing', 'takeoff'], Stamp, Day]]
+    coverage: list[tuple[Day, Stamp, Stamp, Stamp]]
+    last_success_seen: Stamp | None
+    previous_success: Stamp | None
 
 
 def day_bounds(now):
@@ -132,3 +144,36 @@ class MovementLedger:
     def close(self):
         if self.db is not None:
             self.db.close()
+
+    def export_state(self):
+        if self.failed:
+            raise ValueError('Movement ledger unavailable')
+        try:
+            return LedgerState(events=self.db.execute('SELECT aircraft,kind,time,day FROM events').fetchall(),
+                coverage=self.db.execute('SELECT day,first,last,seconds FROM coverage').fetchall(),
+                last_success_seen=self.last_success_seen,previous_success=self.previous_success).model_dump(mode='json')
+        except sqlite3.Error as exc:
+            raise ValueError('Movement ledger unavailable') from exc
+
+    def restore_state(self, state):
+        saved = LedgerState.model_validate(state)
+        for _,_,when,day in saved.events:
+            if day_bounds(when)[0] != day:
+                raise ValueError('Invalid movement day')
+        for day,first,last,seconds in saved.coverage:
+            actual,start,end = day_bounds(first)
+            if day != actual or not start <= first <= last <= end or seconds > last-first:
+                raise ValueError('Invalid movement coverage')
+        if saved.previous_success is not None and saved.previous_success != saved.last_success_seen:
+            raise ValueError('Invalid coverage continuity')
+        if self.failed:
+            raise ValueError('Movement ledger unavailable')
+        try:
+            with self.db:
+                self.db.execute('DELETE FROM events')
+                self.db.execute('DELETE FROM coverage')
+                self.db.executemany('INSERT INTO events VALUES (?,?,?,?)',saved.events)
+                self.db.executemany('INSERT INTO coverage VALUES (?,?,?,?)',saved.coverage)
+        except sqlite3.Error as exc:
+            raise ValueError('Invalid movement ledger') from exc
+        self.last_success_seen,self.previous_success = saved.last_success_seen,saved.previous_success

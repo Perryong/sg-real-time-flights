@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .cloud_cache import RedisCache, CacheLimited, CacheUnavailable
 from .combined import CombinedProvider
 from .config import Settings
-from .contracts import Observation, SourceStatus, Track, Snapshot, PhaseEstimate
+from .contracts import Observation, SourceStatus, Track, Snapshot, PhaseEstimate, MovementSummary
+from .movements import day_bounds
 from .provider import AdsbFiProvider, FlyItalyProvider
 from .service import FeedService
 
@@ -23,6 +24,13 @@ class CloudFeed:
     def render(self, frame):
         snapshot = Snapshot.model_validate(frame)
         now = self.clock()
+        counts = snapshot.status.movements
+        if counts is not None:
+            day,start,_ = day_bounds(now)
+            if counts.day != day:
+                counts = MovementSummary(day=day,available=counts.available)
+                snapshot.status.movements = counts
+            counts.unmonitored_seconds = max(0,now-start-counts.observed_seconds)
         snapshot.tracks = [t for t in snapshot.tracks
             if 0 <= now-(t.latest.position_time or t.latest.receipt_time) <= 120]
         for track in snapshot.tracks:
@@ -75,6 +83,8 @@ class CloudFeed:
                 provider.failures[name] = previous.get('failures',{}).get(name,0)
         feed = FeedService(Settings(live_enabled=True, movement_db=':memory:'), provider, self.clock)
         try:
+            if 'movements' in previous:
+                feed.movements.restore_state(previous['movements'])
             if previous.get('snapshot'):
                 old = Snapshot.model_validate(previous['snapshot'])
                 feed.epoch, feed.sequence = old.epoch, old.sequence
@@ -83,15 +93,15 @@ class CloudFeed:
             while provider.pending:
                 await feed.poll_once()
             frame = feed.snapshot()
-            frame.status.movements = None
             frame.status.collection_mode = 'on_demand'
-            frame.status.message = 'Shared updates while viewing · refreshes every 15 seconds · daily counts unavailable'
+            frame.status.message = 'Shared updates while viewing · daily detected counts have partial coverage'
             for track in frame.tracks:
                 track.history = track.history[-12:]
             state = {'snapshot':frame.model_dump(mode='json'),
                 'sources':{k:v.model_dump(mode='json') for k,v in provider.sources.items()},
                 'observations':{k:[o.model_dump(mode='json') for o in v] for k,v in provider.cache.items()},
-                'failures':provider.failures}
+                'failures':provider.failures,
+                'movements':feed.movements.export_state()}
             if not await self.cache.publish(claim.token,state): raise CacheUnavailable()
             return self.render(state['snapshot'])
         finally:
@@ -105,7 +115,7 @@ def create_cloud_app(settings=None):
         allow_methods=['GET'], expose_headers=['Retry-After','X-Response-Time','Age'])
     @app.get('/api/health')
     def health():
-        return {'ok':True,'collection_mode':'on_demand','refresh_seconds':15,'durable_counts':False}
+        return {'ok':True,'collection_mode':'on_demand','refresh_seconds':15,'durable_counts':True}
 
     @app.get('/api/aircraft')
     async def aircraft(request:Request):
