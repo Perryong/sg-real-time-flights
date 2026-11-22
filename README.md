@@ -39,21 +39,37 @@ Preview serves http://127.0.0.1:4177 and proxies `/api` and `/ws` to port 8017. 
 
 Public site: https://perryong.github.io/sg-real-time-flights/
 
-GitHub Pages serves the Cesium interface, airport geometry and an explicitly synthetic demo. The published frontend is configured to receive live aircraft from the owner’s MacBook over an HTTPS tunnel; GitHub Pages itself does not run Python. If no backend URL is configured at build time, the page starts in Demo mode and disables Live. An outage of a configured live backend stays a live-data outage and never substitutes demo flights.
+GitHub Pages serves the Cesium interface, airport geometry and an explicitly synthetic demo. The live backend runs on **Vercel Hobby**, with **Upstash Redis Free** for shared snapshots and request coordination. Your Mac is not required for the hosted tracker.
 
-The `Publish Changi Observatory` workflow tests the project, builds the static edition and deploys it on pushes to `main`. To reproduce its frontend build, run `npm --prefix frontend run build:pages`; output is `frontend/dist-pages`. Run `npm --prefix frontend run test:pages` for the repository-path browser check. No provider keys are needed for the Pages build.
+The browser fetches live snapshots every 15 seconds while the tab is visible. Hidden tabs pause requests. This is on-demand viewing, not continuous collection; daily landing/takeoff counts are unavailable in this mode. Positions keep their provider timestamps, and stale or unavailable feeds never switch to synthetic data. Cesium 3D, aircraft selection, source attribution and historical route labels remain available.
 
-For public live tracking, deploy the FastAPI backend separately with private environment variables, allow `https://perryong.github.io` in its `ALLOWED_ORIGINS`, set the repository Actions variable `LIVE_BACKEND_URL` to its HTTPS URL, and rerun the Pages workflow. This URL is public; provider API keys must remain exclusively on the backend. A live outage never switches to synthetic data. Free backend hosts may sleep or restrict background polling; check their limits before selecting one.
+### Free cloud deployment
 
-## MacBook as the live server
+Project: `perrymikes-projects/sg-changi-feed-test` (the name is retained from the compatibility test). Backend: `https://sg-changi-feed-test.vercel.app`. Database: `changi-flight-cache`, Singapore, plan `free`, `autoUpgrade=false`, `prodPack=false`. Do not enable paid upgrades. Upstash Free includes 500,000 commands and 10 GB transfer per month at setup time; Vercel Hobby quotas also apply across your account. Free quotas are finite: exhaustion can temporarily stop live updates. No daemon, scheduled collector or paid plan is configured.
 
-The current setup runs the backend on the owner’s Mac, bound to `127.0.0.1:8017`, with GitHub Pages allowed as origin `https://perryong.github.io`. Provider keys stay in the Mac’s ignored `.env`. GitHub stores only the public HTTPS address in the Actions variable `LIVE_BACKEND_URL`.
+`deploy/vercel/package.py` exports only allowlisted public source into a temporary folder. Deploy that folder with Vercel CLI; never upload the repository root, `.env`, private runtime database, downloaded cloud environment files or credentials. The deployment uses Python 3.13, the Singapore runtime region and a 30-second maximum request duration. `backend/app/cloud.py` is the cloud application; the existing `backend/app/main.py` remains the local WebSocket server.
 
-Two user login services were installed locally: `com.changi-observatory.backend` (Python server) and `com.changi-observatory.tunnel` (Cloudflare Quick Tunnel). Their plists are in `~/Library/LaunchAgents/`, with logs in `~/Library/Logs/ChangiObservatory/`. They restart failed processes and start when the owner logs in. Keep the Mac awake, signed in and connected to the internet. Closing the lid, sleeping, logging out or losing connectivity interrupts live aircraft; the static frontend remains available.
+Required private Vercel production variables: `FLYITALYADSB_API_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`. The Upstash integration supplies Redis credentials. Set `LIVE_ENABLED=true`, `ADSBFI_PERSONAL_USE=true`, and `FLYITALYADSB_ENABLED=true`. OpenSky remains disabled. Store secrets through Vercel's environment settings or private stdin, never source files or frontend variables.
 
-The temporary tunnel hostname changes whenever the tunnel process restarts. Read the new `https://…trycloudflare.com` address from `tunnel-error.log`, update `LIVE_BACKEND_URL` in the GitHub repository’s Actions variables, and run **Publish Changi Observatory** again. The backend is a read-only public flight-data service; its HTTPS address is intentionally visible in the frontend. A stable Tailscale Funnel address is an available next step after account-owner activation.
+GitHub Actions variables are public configuration only:
+- `LIVE_BACKEND_URL=https://sg-changi-feed-test.vercel.app`
+- `LIVE_TRANSPORT=http`
 
-To stop sharing from this Mac, unload the tunnel login service using `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.changi-observatory.tunnel.plist`. The backend service can be unloaded the same way using `com.changi-observatory.backend.plist`. To restart an unloaded service, use `launchctl bootstrap gui/$(id -u)` followed by its plist path. Keep the existing service files private; they contain workstation paths but no provider keys.
+The Pages workflow builds both into the frontend. After changing either, rerun **Publish Changi Observatory**. For local WebSockets, leave `VITE_LIVE_TRANSPORT` unset.
+
+### Shared cache and limits
+
+Redis atomically grants one 35-second refresh lease across all server instances. A successful refresh is shared for 15 seconds; Vercel CDN can additionally reuse its HTTP response for five seconds. ADSB.fi polling is limited to at most one request every 15 seconds, FlyItalyADSB to one every 30 seconds, regardless of viewer count. Providers' retry deadlines and access-denial pauses survive instance restarts. A conservative five-minute reservation protects in-flight provider attempts if a refresh crashes.
+
+Origin requests have fixed-minute limits of eight per hashed viewer address and 60 globally. Throttled viewers do not consume the remaining global allowance; CDN hits do not reach these counters. Errors return `Retry-After: 60`. The browser preserves retry delays across tab switches. This is a personal-use quota guard, not unlimited traffic capacity. If Redis is unavailable, the backend fails closed instead of querying providers without coordination.
+
+The shared state contains compressed observations and up to 12 history samples per track. There is no local database on Vercel and no daily movement ledger in viewing-only mode. A separate response-time header plus CDN age corrects browser clock skew without making old positions look fresh.
+
+### Recovery and local fallback
+
+A provider 401/403 pause is intentionally persistent. Correct the credentials first, then set `CLOUD_CACHE_VERSION` to a new value (for example `v2`) and redeploy to start an isolated cache namespace. This resets cached tracks and retry state; do not use it to bypass a provider's access denial or quota. Old state can be removed later from this application's Redis namespace only. For exhausted free quotas, wait for the service's quota reset rather than upgrading automatically.
+
+The previous Mac LaunchAgents (`com.changi-observatory.backend` and `com.changi-observatory.tunnel`) are retained as a local fallback and disabled after cloud verification. Their private logs and `.env` remain on the Mac. To run locally, use `scripts/dev.sh`. Restarting the old Cloudflare tunnel changes its temporary hostname and does not update the hosted tracker automatically.
 
 ## Likely arrivals, departures and historical routes
 

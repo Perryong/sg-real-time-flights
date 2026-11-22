@@ -2,6 +2,15 @@
   "$defs": {
     "FeedStatus": {
       "properties": {
+        "collection_mode": {
+          "default": "continuous",
+          "enum": [
+            "continuous",
+            "on_demand"
+          ],
+          "title": "Collection Mode",
+          "type": "string"
+        },
         "movements": {
           "anyOf": [
             {

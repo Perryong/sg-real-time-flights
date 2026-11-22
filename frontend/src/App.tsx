@@ -33,7 +33,7 @@ import ProviderCredits from "./components/ProviderCredits";
 import AircraftDetails, { formatTime } from "./components/AircraftDetails";
 import SourceDetails from "./components/SourceDetails";
 import { useTraffic } from "./hooks/useTraffic";
-import { freshness } from "./data/freshness";
+import { freshness, effectiveUpstreamState } from "./data/freshness";
 import type { Airport, Mode, Track } from "./data/types";
 
 export default function App() {
@@ -123,7 +123,9 @@ export default function App() {
     if (kind === "runway") setView("3d");
     setAction({ kind, id, nonce: Date.now() });
   };
-  const upstream = feed.snapshot?.status;
+  const reported = feed.snapshot?.status;
+  const upstream = reported && feed.mode==='live'
+    ? {...reported,upstream_state:effectiveUpstreamState(reported,feed.transport,feed.now)} : reported;
   const unavailable = !upstream || upstream.upstream_state === "unavailable";
   const lastAge =
     upstream?.newest_position_time != null
@@ -243,6 +245,7 @@ export default function App() {
           {sidebar && (
             <TrafficList
               movements={upstream?.movements}
+              onDemand={upstream?.collection_mode === "on_demand"}
               connected={feed.transport === "connected"}
               sources={upstream?.sources}
               tracks={tracks}

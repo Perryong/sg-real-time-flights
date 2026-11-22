@@ -17,3 +17,7 @@ playwright-report/
 
 # Private movement counts and monitoring coverage
 runtime/
+
+# Cloud deployment links and private downloaded environment files
+.vercel/
+.env.local

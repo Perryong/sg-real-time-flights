@@ -16,3 +16,8 @@ export function freshness(time: number | null, now: number): Freshness {
         ? "stale"
         : "lost";
 }
+
+export function effectiveUpstreamState(status:{upstream_state:string;last_success:number|null},transport:string,now:number) {
+  return transport!=='connected'||status.last_success===null||now-status.last_success>60
+    ? 'unavailable' : status.upstream_state;
+}

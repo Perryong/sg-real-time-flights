@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Snapshot, Mode } from "../data/types";
 import { acceptSnapshot, isStatus, type StreamState } from "../data/stream";
 import { PlaybackController } from "../data/playback";
-import { fixtureUrl, liveAvailable, socketUrl } from "../data/hosting";
+import { fixtureUrl, liveAvailable, socketUrl, httpFeedUrl } from "../data/hosting";
+
+import { startPolling } from "../data/polling";
 
 export function useTraffic() {
   const [mode, setMode] = useState<Mode>(liveAvailable ? "live" : "simulated"),
@@ -26,6 +28,7 @@ export function useTraffic() {
       attempt = 0,
       lastMessage = Date.now();
     const abort = new AbortController();
+    let stopPolling: (()=>void)|undefined;
     const myGeneration = ++generation.current;
     let connectionId = 0;
     let state: StreamState = { connectionId: 0, snapshot: null };
@@ -106,7 +109,18 @@ export function useTraffic() {
       };
       socket.onerror = () => socket?.close();
     };
-    if (mode === "live") connect();
+    if (mode === "live" && httpFeedUrl) {
+      stopPolling = startPolling(httpFeedUrl, (data,responseNow) => {
+        if (!active()) return;
+        const old = state.snapshot;
+        if (old && old.epoch === data.epoch && data.sequence < old.sequence) return;
+        state = {connectionId, snapshot:data};
+        // Cached server_time is the collection time, not the response time.
+        // Use the separate response clock plus CDN age, not collection time.
+        if(responseNow !== undefined) synchronize(responseNow);
+        setSnapshot(data); setError(null); lastMessage=Date.now();
+      }, value => { if(active()) setTransport(value); });
+    } else if (mode === "live") connect();
     else
       fetch(
         fixtureUrl(mode),
@@ -150,7 +164,7 @@ export function useTraffic() {
       setNow(getNow());
       if (
         document.visibilityState === "visible" &&
-        mode === "live" &&
+        mode === "live" && !httpFeedUrl &&
         Date.now() - lastMessage > 30000
       )
         replaceConnection();
@@ -159,6 +173,7 @@ export function useTraffic() {
     return () => {
       disposed = true;
       abort.abort();
+      stopPolling?.();
       clearInterval(tick);
       clearTimeout(reconnect);
       if (socket?.readyState === WebSocket.CONNECTING) {

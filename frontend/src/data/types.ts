@@ -76,6 +76,7 @@ export interface MovementCounts {
   unmonitored_seconds: number;
 }
 export interface FeedStatus {
+  collection_mode?: "continuous" | "on_demand";
   movements?: MovementCounts | null;
   sources?: Record<string, SourceStatus>;
   mode: Mode;

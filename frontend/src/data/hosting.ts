@@ -21,3 +21,6 @@ export function socketUrl(origin: string): string | null {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.href;
 }
+
+export const httpFeedUrl = liveAvailable && import.meta.env.VITE_LIVE_TRANSPORT === "http"
+  ? `${backend}/api/aircraft` : null;

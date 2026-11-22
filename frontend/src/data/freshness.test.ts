@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshness } from "./freshness";
+import { freshness, effectiveUpstreamState } from "./freshness";
 describe("position age, never message age", () => {
   it.each([
     [20, "fresh"],
@@ -15,4 +15,11 @@ describe("position age, never message age", () => {
     expect(freshness(null, 1000)).toBe("unknown");
     expect(freshness(1100, 1000)).toBe("unknown");
   });
+});
+
+it('marks cached healthy status unavailable after transport failure or source age',()=>{
+  const status={upstream_state:'healthy',last_success:1000};
+  expect(effectiveUpstreamState(status,'unavailable',1001)).toBe('unavailable');
+  expect(effectiveUpstreamState(status,'connected',1061)).toBe('unavailable');
+  expect(effectiveUpstreamState(status,'connected',1015)).toBe('healthy');
 });

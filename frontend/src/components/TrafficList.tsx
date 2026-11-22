@@ -15,6 +15,7 @@ import {changiIntent,intentLabel,routeFor} from "../data/routes";
 import {OfficialBoards} from "./RouteDetails";
 import { freshness } from "../data/freshness";
 interface Props {
+  onDemand?: boolean;
   movements?: FeedStatus["movements"];
   connected?: boolean;
   sources?: FeedStatus["sources"];
@@ -69,7 +70,7 @@ export default function TrafficList(p: Props) {
           <span>AIRBORNE</span>
         </div>
       </div>
-      {p.mode === "live" && <MovementSummary counts={p.movements} now={p.now} connected={!!p.connected} />}
+      {p.mode === "live" && <MovementSummary onDemand={p.onDemand} counts={p.movements} now={p.now} connected={!!p.connected} />}
       <label className="panel-search">
         <Search size={15} />
         <input

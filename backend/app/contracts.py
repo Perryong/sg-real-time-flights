@@ -84,6 +84,7 @@ class MovementSummary(BaseModel):
     unmonitored_seconds: float = 0
 
 class FeedStatus(BaseModel):
+    collection_mode: Literal['continuous', 'on_demand'] = 'continuous'
     movements: MovementSummary | None = None
     mode: Mode = 'live'
     upstream_state: str = 'unavailable'
