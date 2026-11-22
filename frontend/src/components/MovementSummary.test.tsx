@@ -28,3 +28,23 @@ it('never presents yesterday, missing storage or waiting as zero today',()=>{
  rerender(<MovementSummary counts={{...counts,first_observed_at:null,last_observed_at:null}} now={now} connected />);
  expect(screen.getByLabelText('Detected takeoffs').textContent).toBe('—');
 });
+it('shows persisted cloud totals with viewing-only and coverage explanations',()=>{
+ render(<MovementSummary counts={counts} now={now} connected onDemand />);
+ expect(screen.getByLabelText('Detected landings').textContent).toBe('12');
+ expect(screen.getByLabelText('Detected takeoffs').textContent).toBe('9');
+ expect(screen.getByText(/Detected today · partial coverage/)).toBeTruthy();
+ expect(screen.getByText(/only while someone is viewing/i)).toBeTruthy();
+ expect(screen.getByText(/Unmonitored today: 11h 50m/)).toBeTruthy();
+});
+it('keeps cloud totals through a pause but never relabels yesterday as today',()=>{
+ const {rerender}=render(<MovementSummary counts={counts} now={now+600} connected={false} onDemand />);
+ expect(screen.getByLabelText('Detected landings').textContent).toBe('12');
+ expect(screen.getByText(/Updates paused/)).toBeTruthy();
+ expect(screen.getByText(/Unmonitored today: 12h 0m/)).toBeTruthy();
+ rerender(<MovementSummary counts={counts} now={now+86400} connected onDemand />);
+ expect(screen.getByLabelText('Detected landings').textContent).toBe('—');
+ rerender(<MovementSummary counts={{...counts,available:false}} now={now} connected onDemand />);
+ expect(screen.getByText(/Counts unavailable/)).toBeTruthy();
+ rerender(<MovementSummary counts={null} now={now} connected onDemand />);
+ expect(screen.getByLabelText('Detected takeoffs').textContent).toBe('—');
+});
