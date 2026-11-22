@@ -6,11 +6,11 @@ Authorization: user explicitly requested shared caching, request limits, cutover
 Architecture: a dedicated FastAPI HTTP snapshot endpoint uses an atomic Redis lease to refresh one shared state. Browser polls every 15 seconds while visible. ADSB.fi refreshes at most every 15 seconds, FlyItaly every 30 seconds across all viewers. Redis holds provider retry state and short track history; timestamps are never renewed on cache hits. OpenSky stays disabled. Missing shared storage fails closed. No continuous worker or paid upgrade.
 
 ## Tasks
-- [x] 1. Create free Upstash resource (Singapore, autoUpgrade=false, prodPack=false), privately configure Redis credentials. Pending user acceptance of marketplace terms.
+- [x] 1. Create free Upstash resource (Singapore, autoUpgrade=false, prodPack=false), privately configure Redis credentials. User accepted marketplace terms.
 - [x] 2. Add backend/app/cloud_cache.py + cloud.py, deploy/vercel configuration, allowlisted package exporter. Tests: concurrent callers refresh once, expired lease cannot publish, provider backoff survives instances, all-source failure, stale positions, request limits, unavailable cache and CORS. Real Redis Lua integration checks.
 - [x] 3. Add optional HTTP transport to frontend hosting/useTraffic and Pages workflow. Tests: snapshots validate, repeated cache hits do not rewind time, new epoch accepted, no overlapping polling, 429/503 backoff, hidden tabs pause, teardown cancels. Label on-demand mode and unavailable daily counts honestly.
 - [x] 4. Run backend/frontend suites, both builds, browser checks; fresh independent review. Deploy on Hobby and prove shared state + source request bounds using concurrent requests.
-- [ ] 5. Set GitHub LIVE_BACKEND_URL and LIVE_TRANSPORT, push main and wait Pages success. Verify Cesium 3D + live flights on published site. Stop Mac collector/tunnel after cutover and verify hosted endpoint again.
+- [x] 5. Set GitHub LIVE_BACKEND_URL and LIVE_TRANSPORT, push main and wait Pages success. Verify Cesium 3D + live flights on published site. Stop Mac collector/tunnel after cutover and verify hosted endpoint again.
 
 Free constraints: Vercel Hobby + Upstash Free only; no auto-upgrade, paid daemon, cron, or third-party subscription. Quota exhaustion must show temporary unavailability, never start uncoordinated upstream requests. Personal usage can exhaust free quotas; no promise of unlimited traffic.
 
@@ -27,3 +27,4 @@ Review focus: lease ownership, upstream deadlines persisted before network reque
 - Initial full browser run found the local test server stopped (connection refused). Started the test server and reran the suite; this was test setup, not an app failure.
 
 - Final local verification: 137 backend tests, 51 frontend tests, 15 existing browser tests and the HTTP Pages/Cesium test passed; local and Pages builds passed. Deployment dpl_G46wFfSTM48XqgTuD5ujjqSUzcbh is READY.
+- Cutover completed: Pages workflow 44982208039 succeeded for commit 487fc2a. Published site showed live aircraft and a healthy Cesium 3D view. Both Mac LaunchAgents were stopped and disabled; port 8017 no longer listens. Subsequent cloud response advanced to sequence 7 with 63 tracks, healthy ADSB.fi and FlyItaly sources, and a newest position age of 0.1 seconds. Local files are retained for manual fallback.
