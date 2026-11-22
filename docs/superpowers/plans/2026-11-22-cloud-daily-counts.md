@@ -36,3 +36,4 @@ Free existing services only; no Mac, new dependency or background collection. Ke
 - Initial baseline: 137 backend tests. Test-first checks failed for missing persistence and hidden cloud counters before implementation.
 - Independent review found missing/truncated ledger recovery could reset counts; regression tests now require snapshot/ledger agreement before polling. Out-of-calendar timestamps are rejected as validation errors.
 - Deployment/merge authorized by user; existing clean checkout used on a new branch. No new service, Redis request or background collector added.
+- Final local verification: 151 backend tests, 53 frontend tests, Pages build and cloud Pages/Cesium browser check passed. Existing rate-limit test now accounts for Redis minute rollover.

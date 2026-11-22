@@ -65,14 +65,24 @@ async def test_only_one_instance_claims_refresh_and_old_owner_cannot_publish(cac
     assert await cache.publish(new.token, {'hello':'new'})
 
 @pytest.mark.asyncio
-async def test_limits_do_not_start_refresh(cache_factory):
+async def test_limits_do_not_start_refresh(cache_factory,command):
     from backend.app.cloud_cache import CacheLimited
-    cache = cache_factory()
-    for _ in range(8): await cache.claim('one-viewer')
-    with pytest.raises(CacheLimited): await cache.claim('one-viewer')
-    other = cache_factory()
-    for i in range(60): await other.claim(str(i))
-    with pytest.raises(CacheLimited): await other.claim('sixty-first')
+    # Redis windows use wall-clock minutes; a run crossing the boundary has a new budget.
+    for _ in range(3):
+        minute=int(command('TIME')[0])//60
+        cache,other = cache_factory(),cache_factory()
+        for _ in range(8): await cache.claim('one-viewer')
+        viewer_limited=False
+        try: await cache.claim('one-viewer')
+        except CacheLimited:viewer_limited=True
+        for i in range(60): await other.claim(str(i))
+        global_limited=False
+        try: await other.claim('sixty-first')
+        except CacheLimited:global_limited=True
+        if int(command('TIME')[0])//60 == minute:
+            assert viewer_limited and global_limited
+            break
+    else:pytest.fail('Could not exercise limits within one Redis minute')
 
 @pytest.mark.asyncio
 async def test_unavailable_cache_never_falls_back_to_upstream():
