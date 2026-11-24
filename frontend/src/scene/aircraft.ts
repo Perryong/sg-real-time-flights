@@ -33,6 +33,7 @@ export class AircraftLayer {
   selected: string | null = null;
   trails = true;
   models = true;
+  observerView = false;
   points: PointPrimitiveCollection;
   segment: Entity;
   constructor(
@@ -72,15 +73,23 @@ export class AircraftLayer {
       },
     });
   }
+  displayed(t: Track) {
+    if (!this.observerView) return displayPosition(t, this.now() - 10, this.now());
+    const o = t.latest;
+    return {lat:o.lat,lon:o.lon,ground:o.ground,
+      altitude:Number.isFinite(o.alt_geom_m)?o.alt_geom_m:Number.isFinite(o.alt_baro_m)?o.alt_baro_m:null};
+  }
   position(t: Track) {
-    const p = displayPosition(t, this.now() - 10, this.now());
+    const p = this.displayed(t);
     return Cartesian3.fromDegrees(
       p.lon,
       p.lat,
       p.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
     );
   }
-  update(tracks: Track[], selected: string | null, trails: boolean) {
+  update(tracks: Track[], selected: string | null, trails: boolean, observerView = false) {
+    this.observerView = observerView;
+    trails = trails && !observerView;
     this.selected = selected;
     this.trails = trails;
     this.tracks = new Map(tracks.map((t) => [t.id, t]));
@@ -158,11 +167,7 @@ export class AircraftLayer {
             maximumScale: 100,
             scale: 1,
             show: new CallbackProperty(() => {
-              const displayed = displayPosition(
-                current(),
-                this.now() - 10,
-                this.now(),
-              );
+              const displayed = this.displayed(current());
               return (
                 this.models &&
                 (displayed.altitude !== null || displayed.ground === true) &&

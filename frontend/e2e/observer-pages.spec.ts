@@ -1,0 +1,47 @@
+import {test,expect} from '@playwright/test';
+test('places a Singapore pin, shows nearby traffic, enters sky view and removes the pin',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('./');await page.getByRole('button',{name:'Demo',exact:true}).click();
+ await page.getByRole('button',{name:'My location',exact:true}).click();
+ await page.getByRole('button',{name:'Drop pin',exact:true}).click();
+ const canvas=page.locator('.cesium-widget canvas');await expect(canvas).toBeVisible();
+ await page.waitForTimeout(1300);await canvas.click({position:{x:650,y:430}});
+ await expect(page.getByText('Dropped pin',{exact:true})).toBeVisible();
+ await expect(page.getByText('Nearby aircraft · 25 km')).toBeVisible();
+ await page.getByRole('button',{name:'Sky view from pin'}).click();
+ await expect(page.getByLabel('Sky direction')).toBeVisible();
+ await expect(page.getByText('SKY VIEW FROM PIN',{exact:true})).toBeVisible();
+ await page.getByLabel('Sky direction').press('Home');
+ await page.getByLabel('Sky direction').press('ArrowRight');
+ await expect(page.getByText('Direction 1°')).toBeVisible();
+ await page.screenshot({path:'/tmp/changi-observer-sky.jpg'});
+ await page.getByRole('button',{name:'Return to map'}).click();
+ await expect(page.getByLabel('Sky direction')).toHaveCount(0);
+ await page.getByRole('button',{name:'Remove pin'}).click();
+ await expect(page.getByText('Dropped pin',{exact:true})).toHaveCount(0);
+ expect(errors).toEqual([]);
+});
+
+test('postal lookup places a pin on mobile and a nearby aircraft can be viewed from it',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await page.route('**/api/location/postal',route=>route.fulfill({json:{results:[{lat:1.3644,lon:103.9915,label:'Test Changi location',postal:'819643'}]},headers:{'access-control-allow-origin':'*'}}));
+ await page.goto('./');await page.getByRole('button',{name:'Demo',exact:true}).click();
+ await page.getByRole('button',{name:'Toggle aircraft list'}).click();
+ await page.getByRole('button',{name:/^Select SYN/}).first().click();
+ await expect(page.getByRole('region',{name:'Selected aircraft details'})).toBeVisible();
+ await page.getByRole('button',{name:'My location',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Selected aircraft details'})).toHaveCount(0);
+ await page.getByLabel('Singapore postal code').fill('819643');await page.getByRole('button',{name:'Find',exact:true}).click();
+ await expect(page.getByText('Test Changi location')).toBeVisible();
+ const look=page.getByRole('button',{name:/^Look at SYN/}).first();await look.click();
+ await expect(page.getByRole('region',{name:'Selected aircraft details'})).toHaveCount(0);
+ await expect(page.getByText('SKY VIEW FROM PIN',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Hide aircraft panel'}).click();
+ await page.screenshot({path:'/tmp/changi-observer-mobile.jpg'});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await page.getByRole('button',{name:'Toggle aircraft list'}).click();
+ await page.getByRole('button',{name:/^Select SYN/}).first().click();
+ await expect(page.getByRole('region',{name:'Selected aircraft details'})).toBeVisible();
+ await expect(page.getByText('SKY VIEW FROM PIN',{exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'3D',exact:true})).toBeVisible();
+});

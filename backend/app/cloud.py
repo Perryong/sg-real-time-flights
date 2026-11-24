@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .cloud_cache import RedisCache, CacheLimited, CacheUnavailable
 from .combined import CombinedProvider
+from .geocoding import router as geocoding_router
 from .config import Settings
 from .contracts import Observation, SourceStatus, Track, Snapshot, PhaseEstimate, MovementSummary
 from .movements import day_bounds
@@ -119,7 +120,8 @@ class CloudFeed:
 def create_cloud_app(settings=None):
     app = FastAPI(title='Changi Observatory cloud feed')
     app.add_middleware(CORSMiddleware,allow_origins=['https://perryong.github.io','http://127.0.0.1:4177'],
-        allow_methods=['GET'], expose_headers=['Retry-After','X-Response-Time','Age'])
+        allow_methods=['GET','POST'],allow_headers=['Content-Type'], expose_headers=['Retry-After','X-Response-Time','Age'])
+    app.include_router(geocoding_router)
     @app.get('/api/health')
     def health():
         return {'ok':True,'collection_mode':'on_demand','refresh_seconds':15,'durable_counts':True}

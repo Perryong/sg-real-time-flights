@@ -4,6 +4,9 @@ import {
   Viewer,
   Rectangle,
   Cartesian3,
+  Cartesian2,
+  Cartographic,
+  LabelStyle,
   Color,
   UrlTemplateImageryProvider,
   ImageryLayer,
@@ -14,9 +17,12 @@ import {
   EllipsoidTerrainProvider,
   JulianDate,
 } from "cesium";
+import {nearbyAircraft,type ObserverPin} from "../data/observer";
+import type {SkyAim} from "../components/ObserverPanel";
 import type { Airport, Track } from "../data/types";
 import { addAirport } from "./airport";
 import { AircraftLayer } from "./aircraft";
+import { guardCameraDoubleClick } from "./cameraGuard";
 import type {} from "./performance";
 import { DarkMapProvider } from "./imagery";
 // Fit geographic bounds through Cesium's camera API so the shorter screen
@@ -28,17 +34,21 @@ const regionalExtent = Rectangle.fromDegrees(
   103.9915 + regionLonSpan, 1.3644 + regionLatSpan,
 );
 export type CameraAction = {
-  kind: "overview" | "north" | "in" | "out" | "runway";
+  kind: "overview" | "north" | "in" | "out" | "runway" | "pin" | "place";
   id?: string;
   nonce: number;
 };
 interface Props {
+  observer:ObserverPin|null;
+  placing:boolean;
+  skyAim:SkyAim;
+  onPin:(pin:ObserverPin)=>void;
   airport: Airport | null;
   tracks: Track[];
   selected: string | null;
   follow: boolean;
   night: boolean;
-  view: "overhead" | "3d";
+  view: "overhead" | "3d" | "sky";
   trails: boolean;
   geometry: boolean;
   action: CameraAction;
@@ -84,6 +94,7 @@ export default function MapScene(props: Props) {
         requestRenderMode: false,
       });
       viewerRef.current = viewer;
+      guardCameraDoubleClick(viewer.screenSpaceEventHandler,()=>latest.current.view==='sky'||latest.current.placing);
       viewer.resolutionScale = Math.min(window.devicePixelRatio, 1.5);
       viewer.scene.backgroundColor = Color.fromCssColorString("#08141e");
       viewer.scene.globe.baseColor = Color.fromCssColorString("#102833");
@@ -126,6 +137,11 @@ export default function MapScene(props: Props) {
         });
       handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
       handler.setInputAction((click: { position: any }) => {
+        if(latest.current.placing){
+          const point=viewer.camera.pickEllipsoid(click.position,viewer.scene.globe.ellipsoid);
+          if(point){const c=Cartographic.fromCartesian(point);latest.current.onPin({lat:CMath.toDegrees(c.latitude),lon:CMath.toDegrees(c.longitude),height:2})}
+          return;
+        }
         const picked = viewer.scene.pick(click.position);
         if (picked?.id?.id && layer.current?.tracks.has(picked.id.id))
           latest.current.onSelect(picked.id.id);
@@ -233,7 +249,9 @@ export default function MapScene(props: Props) {
   }, [props.airport, ready]);
   useEffect(() => {
     if (ready) {
-      layer.current?.update(props.tracks, props.selected, props.trails);
+      const sceneTracks=props.view==='sky'&&props.observer
+        ? nearbyAircraft(props.observer,props.tracks,props.getNow()).filter(t=>t.elevation!==null&&t.elevation>=0).map(t=>t.track) : props.tracks;
+      layer.current?.update(sceneTracks, props.selected, props.trails, props.view==='sky');
       const rect = viewerRef.current?.camera.computeViewRectangle();
       if (rect)
         props.onVisibleCount(
@@ -249,7 +267,7 @@ export default function MapScene(props: Props) {
           }).length,
         );
     }
-  }, [props.tracks, props.selected, props.trails, ready]);
+  }, [props.tracks, props.selected, props.trails, props.view, props.observer, ready]);
   useEffect(() => {
     const v = viewerRef.current;
     if (!v || !ready) return;
@@ -273,15 +291,23 @@ export default function MapScene(props: Props) {
     v.entities.values.forEach((e) => {
       if (
         !layer.current?.entities.has(e.id) &&
-        e.id !== "selected-display-segment"
+        e.id !== "selected-display-segment" && e.id !== "observer-pin"
       )
         e.show = props.geometry;
     });
   }, [props.geometry, props.airport, ready]);
+  useEffect(()=>{
+    const v=viewerRef.current;if(!v||!ready)return;
+    v.entities.removeById('observer-pin');
+    if(props.observer)v.entities.add({id:'observer-pin',position:Cartesian3.fromDegrees(props.observer.lon,props.observer.lat,2),
+      point:{pixelSize:13,color:Color.CYAN,outlineColor:Color.BLACK,outlineWidth:2,disableDepthTestDistance:Number.POSITIVE_INFINITY},
+      label:{text:'Your pin',font:'14px sans-serif',fillColor:Color.CYAN,style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3,pixelOffset:new Cartesian2(0,-24),disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+  },[props.observer,ready]);
   useEffect(() => {
     const v = viewerRef.current;
     if (!v || !ready) return;
     v.trackedEntity = undefined;
+    if(props.view==='sky')return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     v.camera.flyTo({
       destination: props.view === "3d"
@@ -317,6 +343,12 @@ export default function MapScene(props: Props) {
       });
       return;
     }
+    if(kind==='place'){
+      v.camera.flyTo({destination:Rectangle.fromDegrees(103.59,1.15,104.11,1.48),orientation:{heading:0,pitch:-Math.PI/2,roll:0},duration});return;
+    }
+    if(kind==='pin'&&props.observer){
+      v.camera.flyTo({destination:Cartesian3.fromDegrees(props.observer.lon,props.observer.lat,15000),orientation:{heading:0,pitch:-Math.PI/2,roll:0},duration});return;
+    }
     if (kind === "runway") {
       const f = props.airport?.runways.features.find(
         (r) => r.properties.name === id,
@@ -341,9 +373,21 @@ export default function MapScene(props: Props) {
       duration,
     });
   }, [props.action, ready]);
+  useEffect(()=>{
+    const v=viewerRef.current;if(!v||!ready)return;
+    const sky=props.view==='sky'&&!!props.observer;
+    v.scene.screenSpaceCameraController.enableInputs=!sky;
+    v.scene.screenSpaceCameraController.enableCollisionDetection=!sky;
+    v.scene.screenSpaceCameraController.minimumZoomDistance=sky?2:200;
+    if(sky&&props.observer){
+      v.camera.cancelFlight();v.trackedEntity=undefined;
+      v.camera.setView({destination:Cartesian3.fromDegrees(props.observer.lon,props.observer.lat,props.observer.height),
+        orientation:{heading:CMath.toRadians(props.skyAim.heading),pitch:CMath.toRadians(props.skyAim.pitch),roll:0}});
+    }
+  },[props.view,props.observer,props.skyAim,ready]);
   return (
     <div
-      className="map-canvas"
+      className={`map-canvas ${props.placing?'placing-pin':''}`}
       ref={container}
       aria-label="Singapore geographic flight map"
       role="region"
