@@ -6,7 +6,7 @@ import { fixtureUrl, liveAvailable, socketUrl, httpFeedUrl } from "../data/hosti
 
 import { startPolling } from "../data/polling";
 
-export function useTraffic() {
+export function useTraffic(region="singapore") {
   const [mode, setMode] = useState<Mode>(liveAvailable ? "live" : "simulated"),
     [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [transport, setTransport] = useState("connecting"),
@@ -110,7 +110,7 @@ export function useTraffic() {
       socket.onerror = () => socket?.close();
     };
     if (mode === "live" && httpFeedUrl) {
-      stopPolling = startPolling(httpFeedUrl, (data,responseNow) => {
+      stopPolling = startPolling(region==='singapore'?httpFeedUrl:`${httpFeedUrl}?region=${encodeURIComponent(region)}`, (data,responseNow) => {
         if (!active()) return;
         const old = state.snapshot;
         if (old && old.epoch === data.epoch && data.sequence < old.sequence) return;
@@ -184,7 +184,7 @@ export function useTraffic() {
       playback.current = null;
       document.removeEventListener("visibilitychange", resume);
     };
-  }, [mode, getNow]);
+  }, [mode, getNow, region]);
   const togglePlay = () => {
     const p = playback.current;
     if (p) {

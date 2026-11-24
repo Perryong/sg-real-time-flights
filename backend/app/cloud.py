@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .cloud_cache import RedisCache, CacheLimited, CacheUnavailable
 from .combined import CombinedProvider
+from .regions import REGIONS
 from .geocoding import router as geocoding_router
 from .config import Settings
 from .contracts import Observation, SourceStatus, Track, Snapshot, PhaseEstimate, MovementSummary
@@ -18,9 +19,10 @@ from .service import FeedService
 
 
 class CloudFeed:
-    def __init__(self, cache, client, settings, clock=time.time, providers=None):
+    def __init__(self, cache, client, settings, clock=time.time, providers=None, region="singapore"):
         self.cache, self.client, self.settings, self.clock = cache, client, settings, clock
         self.providers = providers
+        self.region = region
 
     def render(self, frame):
         snapshot = Snapshot.model_validate(frame)
@@ -53,6 +55,11 @@ class CloudFeed:
             return self.render(previous['snapshot'])
         primary, regional = self.providers or (AdsbFiProvider(self.client,self.clock),
             FlyItalyProvider(self.client,self.settings.flyitaly_api_key,self.clock) if self.settings.flyitaly_enabled else None)
+        if self.region!='singapore' and self.providers is None:
+            primary=None
+            if regional is not None:
+                lat,lon,radius=REGIONS[self.region]
+                regional.URL=f'https://api.flyitalyadsb.com/v2/lat/{lat}/lon/{lon}/dist/{radius}?with=route'
         checkpoint_lock = asyncio.Lock()
         reserved = {}
         async def checkpoint():
@@ -102,14 +109,18 @@ class CloudFeed:
             frame = feed.snapshot()
             frame.status.movements = feed.movements.summary(frame.server_time)
             frame.status.collection_mode = 'on_demand'
-            frame.status.message = 'Shared updates while viewing · daily detected counts have partial coverage'
+            if self.region!='singapore':
+                frame.status.movements=None
+                for track in frame.tracks:
+                    track.phase=PhaseEstimate(phase='airborne' if track.latest.ground is False else 'unknown',reasons=['Regional view; Changi phase inference does not apply'])
+            frame.status.message = ('Shared updates while viewing · daily detected counts have partial coverage' if self.region=='singapore' else 'Regional updates while viewing · coverage depends on receivers')
             for track in frame.tracks:
                 track.history = track.history[-12:]
             state = {'snapshot':frame.model_dump(mode='json'),
                 'sources':{k:v.model_dump(mode='json') for k,v in provider.sources.items()},
                 'observations':{k:[o.model_dump(mode='json') for o in v] for k,v in provider.cache.items()},
                 'failures':provider.failures,
-                'movements':feed.movements.export_state()}
+                **({'movements':feed.movements.export_state()} if self.region=='singapore' else {})}
             if not await self.cache.publish(claim.token,state): raise CacheUnavailable()
             return self.render(state['snapshot'])
         finally:
@@ -128,19 +139,23 @@ def create_cloud_app(settings=None):
 
     @app.get('/api/aircraft')
     async def aircraft(request:Request):
-        if request.query_params:
-            return JSONResponse({'error':'Query parameters are not supported'},status_code=400)
+        region=request.query_params.get('region','singapore')
+        if region not in REGIONS or any(k!='region' for k in request.query_params) or len(request.query_params.getlist('region'))>1:
+            return JSONResponse({'error':'Choose a supported region'},status_code=400)
         config = settings or Settings.from_env()
         if not config.live_enabled:
             return JSONResponse({'error':'Live data is not enabled'},status_code=503,headers={'Retry-After':'60'})
+        if region!='singapore' and not config.flyitaly_enabled:
+            return JSONResponse({'error':'Regional source is not configured'},status_code=503,headers={'Retry-After':'60'})
         # Vercel overwrites x-vercel-forwarded-for. Ignore caller-supplied generic XFF.
         viewer = request.headers.get('x-vercel-forwarded-for') if os.getenv('VERCEL') else request.client.host if request.client else 'unknown'
         async with httpx.AsyncClient(follow_redirects=False) as client:
+            prefix='changi:cloud:'+os.getenv('CLOUD_CACHE_VERSION','v1')
             cache = RedisCache(client,os.getenv('KV_REST_API_URL',os.getenv('UPSTASH_REDIS_REST_URL','')),
                 os.getenv('KV_REST_API_TOKEN',os.getenv('UPSTASH_REDIS_REST_TOKEN','')),
-                prefix='changi:cloud:'+os.getenv('CLOUD_CACHE_VERSION','v1'))
+                prefix=prefix if region=='singapore' else prefix+':region:'+region,rate_prefix=prefix)
             try:
-                snapshot = await CloudFeed(cache,client,config).snapshot(viewer or 'unknown')
+                snapshot = await CloudFeed(cache,client,config,region=region).snapshot(viewer or 'unknown')
                 return JSONResponse(snapshot.model_dump(mode='json'),headers={
                     'Cache-Control':'no-store',
                     'X-Response-Time':str(time.time()),

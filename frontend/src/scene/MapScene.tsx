@@ -1,10 +1,13 @@
-import { COVERAGE_RADIUS_NM, REGION_SCALE } from "../data/coverage";
 import { useEffect, useRef, useState } from "react";
 import {
   Viewer,
   Rectangle,
   Cartesian3,
   Cartesian2,
+  Matrix4,
+  Transforms,
+  SkyAtmosphere,
+  Credit,
   Cartographic,
   LabelStyle,
   Color,
@@ -22,23 +25,28 @@ import type {SkyAim} from "../components/ObserverPanel";
 import type { Airport, Track } from "../data/types";
 import { addAirport } from "./airport";
 import { AircraftLayer } from "./aircraft";
+import {type FollowCamera} from "../data/follow";
+import type {FollowStyle} from "../components/FollowPanel";
 import { guardCameraDoubleClick } from "./cameraGuard";
 import type {} from "./performance";
 import { DarkMapProvider } from "./imagery";
 // Fit geographic bounds through Cesium's camera API so the shorter screen
 // dimension contains the region in both widescreen and portrait layouts.
-const regionLatSpan = COVERAGE_RADIUS_NM / 60 * 1.08;
-const regionLonSpan = regionLatSpan / Math.cos(1.3644 * Math.PI / 180);
-const regionalExtent = Rectangle.fromDegrees(
-  103.9915 - regionLonSpan, 1.3644 - regionLatSpan,
-  103.9915 + regionLonSpan, 1.3644 + regionLatSpan,
-);
+interface Region {lat:number;lon:number;radius:number;name:string}
+function regionExtent(region:Region){
+ const latSpan=region.radius/111.195*1.08,lonSpan=latSpan/Math.cos(region.lat*Math.PI/180);
+ return Rectangle.fromDegrees(region.lon-lonSpan,region.lat-latSpan,region.lon+lonSpan,region.lat+latSpan);
+}
 export type CameraAction = {
   kind: "overview" | "north" | "in" | "out" | "runway" | "pin" | "place";
   id?: string;
   nonce: number;
 };
 interface Props {
+  region:Region;
+  followCamera:FollowCamera;
+  followStyle:FollowStyle;
+  onSatelliteUnavailable:()=>void;
   observer:ObserverPin|null;
   placing:boolean;
   skyAim:SkyAim;
@@ -60,6 +68,7 @@ interface Props {
   onVisibleCount: (n: number) => void;
 }
 export default function MapScene(props: Props) {
+  const regionalExtent=regionExtent(props.region);
   const container = useRef<HTMLDivElement>(null),
     viewerRef = useRef<Viewer | null>(null),
     layer = useRef<AircraftLayer | null>(null),
@@ -90,11 +99,11 @@ export default function MapScene(props: Props) {
         terrainProvider: new EllipsoidTerrainProvider(),
         shouldAnimate: false,
         skyBox: false,
-        skyAtmosphere: false,
+        skyAtmosphere: new SkyAtmosphere(),
         requestRenderMode: false,
       });
       viewerRef.current = viewer;
-      guardCameraDoubleClick(viewer.screenSpaceEventHandler,()=>latest.current.view==='sky'||latest.current.placing);
+      guardCameraDoubleClick(viewer.screenSpaceEventHandler,()=>latest.current.view==='sky'||latest.current.placing||latest.current.follow);
       viewer.resolutionScale = Math.min(window.devicePixelRatio, 1.5);
       viewer.scene.backgroundColor = Color.fromCssColorString("#08141e");
       viewer.scene.globe.baseColor = Color.fromCssColorString("#102833");
@@ -115,6 +124,17 @@ export default function MapScene(props: Props) {
       );
       viewer.imageryLayers.add(new ImageryLayer(imagery, { brightness: 0.8 }));
       viewer.imageryLayers.add(new ImageryLayer(dayImagery, { show: false }));
+      const satellite=new UrlTemplateImageryProvider({
+        url:'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2017_3857/default/g/{z}/{y}/{x}.jpg',maximumLevel:13,
+        credit:new Credit('<a href="https://maps.eox.at/">Sentinel-2 cloudless by EOX</a> · modified Copernicus Sentinel data 2017 · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>',true),
+      });
+      satellite.errorEvent.addEventListener(()=>{
+        if(latest.current.follow&&latest.current.followStyle==='satellite'){
+          latest.current.onSatelliteUnavailable();
+          latest.current.onError('Satellite imagery unavailable; showing the day map.');
+        }
+      });
+      viewer.imageryLayers.add(new ImageryLayer(satellite,{show:false}));
       viewer.camera.setView({
         destination: regionalExtent,
         orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
@@ -251,7 +271,7 @@ export default function MapScene(props: Props) {
     if (ready) {
       const sceneTracks=props.view==='sky'&&props.observer
         ? nearbyAircraft(props.observer,props.tracks,props.getNow()).filter(t=>t.elevation!==null&&t.elevation>=0).map(t=>t.track) : props.tracks;
-      layer.current?.update(sceneTracks, props.selected, props.trails, props.view==='sky');
+      layer.current?.update(sceneTracks, props.selected, props.trails, props.view==='sky',props.follow?props.selected:null);
       const rect = viewerRef.current?.camera.computeViewRectangle();
       if (rect)
         props.onVisibleCount(
@@ -267,24 +287,39 @@ export default function MapScene(props: Props) {
           }).length,
         );
     }
-  }, [props.tracks, props.selected, props.trails, props.view, props.observer, ready]);
+  }, [props.tracks, props.selected, props.trails, props.view, props.observer, props.follow, ready]);
+  useEffect(()=>{
+    const v=viewerRef.current;if(!v||!ready||!props.follow||!props.selected)return;
+    const prior={destination:Cartesian3.clone(v.camera.positionWC),orientation:{direction:Cartesian3.clone(v.camera.directionWC),up:Cartesian3.clone(v.camera.upWC)}};
+    v.camera.cancelFlight();v.trackedEntity=undefined;
+    v.scene.screenSpaceCameraController.enableInputs=false;
+    const update=()=>{
+      const p=latest.current,t=p.tracks.find(t=>t.id===p.selected),l=layer.current;
+      if(!t||!l)return;
+      l.displayed(t);
+      const frame=l.followFrame;if(!frame)return;
+      const {distance,orbit,elevation}=p.followCamera,azimuth=CMath.toRadians((frame.heading??0)+180+orbit),tilt=CMath.toRadians(elevation);
+      const offset=new Cartesian3(Math.sin(azimuth)*distance*Math.cos(tilt),Math.cos(azimuth)*distance*Math.cos(tilt),distance*Math.sin(tilt));
+      v.camera.lookAtTransform(Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(frame.lon,frame.lat,frame.altitude)),offset);
+    };
+    const remove=v.scene.preRender.addEventListener(update);update();
+    return ()=>{remove();if(v.isDestroyed())return;v.camera.lookAtTransform(Matrix4.IDENTITY);v.camera.setView(prior);v.scene.screenSpaceCameraController.enableInputs=true;};
+  },[props.follow,props.selected,ready]);
   useEffect(() => {
     const v = viewerRef.current;
     if (!v || !ready) return;
-    v.trackedEntity =
-      props.follow && props.selected
-        ? layer.current?.entities.get(props.selected)
-        : undefined;
-  }, [props.follow, props.selected, props.tracks, ready]);
-  useEffect(() => {
-    const v = viewerRef.current;
-    if (!v || !ready) return;
-    v.imageryLayers.get(0).show = props.night;
-    v.imageryLayers.get(1).show = !props.night;
+    const night=props.follow?props.followStyle==='night':props.night;
+    v.imageryLayers.get(0).show = night;
+    const satellite=props.follow&&props.followStyle==='satellite';
+    v.imageryLayers.get(1).show = !night&&!satellite;
+    v.imageryLayers.get(2).show = satellite;
+    v.scene.skyAtmosphere!.show=props.follow;
+    v.scene.globe.showGroundAtmosphere=props.follow;
+    v.scene.backgroundColor=Color.fromCssColorString(props.follow&&!night?'#9ebdcb':'#08141e');
     v.clock.currentTime = JulianDate.fromIso8601(
-      props.night ? "2026-11-19T16:00:00Z" : "2026-11-19T04:00:00Z",
+      night ? "2026-11-19T16:00:00Z" : "2026-11-19T04:00:00Z",
     );
-  }, [props.night, ready]);
+  }, [props.night, props.follow, props.followStyle, ready]);
   useEffect(() => {
     const v = viewerRef.current;
     if (!v || !ready) return;
@@ -307,11 +342,11 @@ export default function MapScene(props: Props) {
     const v = viewerRef.current;
     if (!v || !ready) return;
     v.trackedEntity = undefined;
-    if(props.view==='sky')return;
+    if(props.view==='sky'||props.follow)return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     v.camera.flyTo({
       destination: props.view === "3d"
-        ? Cartesian3.fromDegrees(103.96, 1.36 - 0.28 * REGION_SCALE, 43000 * REGION_SCALE)
+        ? Cartesian3.fromDegrees(props.region.lon, props.region.lat - 0.28 * props.region.radius/46.3, 43000 * props.region.radius/46.3)
         : regionalExtent,
       orientation: {
         heading: 0,
@@ -320,7 +355,7 @@ export default function MapScene(props: Props) {
       },
       duration: reduced ? 0 : 1.1,
     });
-  }, [props.view, ready]);
+  }, [props.view, props.region, ready]);
   useEffect(() => {
     const v = viewerRef.current;
     if (!v || !ready) return;
@@ -376,7 +411,7 @@ export default function MapScene(props: Props) {
   useEffect(()=>{
     const v=viewerRef.current;if(!v||!ready)return;
     const sky=props.view==='sky'&&!!props.observer;
-    v.scene.screenSpaceCameraController.enableInputs=!sky;
+    v.scene.screenSpaceCameraController.enableInputs=!sky&&!props.follow;
     v.scene.screenSpaceCameraController.enableCollisionDetection=!sky;
     v.scene.screenSpaceCameraController.minimumZoomDistance=sky?2:200;
     if(sky&&props.observer){
@@ -384,12 +419,12 @@ export default function MapScene(props: Props) {
       v.camera.setView({destination:Cartesian3.fromDegrees(props.observer.lon,props.observer.lat,props.observer.height),
         orientation:{heading:CMath.toRadians(props.skyAim.heading),pitch:CMath.toRadians(props.skyAim.pitch),roll:0}});
     }
-  },[props.view,props.observer,props.skyAim,ready]);
+  },[props.view,props.observer,props.skyAim,props.follow,ready]);
   return (
     <div
       className={`map-canvas ${props.placing?'placing-pin':''}`}
       ref={container}
-      aria-label="Singapore geographic flight map"
+      aria-label={`${props.region.name} geographic flight map`}
       role="region"
     />
   );

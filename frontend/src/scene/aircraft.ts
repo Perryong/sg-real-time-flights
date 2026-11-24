@@ -17,6 +17,7 @@ import {
   PolylineDashMaterialProperty,
   PolylineGraphics,
 } from "cesium";
+import {followSample,type FollowSample} from "../data/follow";
 import { displayPosition } from "../data/display";
 import { freshness } from "../data/freshness";
 import type { Track } from "../data/types";
@@ -34,6 +35,8 @@ export class AircraftLayer {
   trails = true;
   models = true;
   observerView = false;
+  followId: string | null = null;
+  followFrame: FollowSample | null = null;
   points: PointPrimitiveCollection;
   segment: Entity;
   constructor(
@@ -50,7 +53,7 @@ export class AircraftLayer {
           const p = t.history
             .filter(
               (o) =>
-                o.position_time !== null && o.position_time <= this.now() - 10,
+                o.position_time !== null && o.position_time <= (this.followFrame?.renderTime ?? this.now() - 10),
             )
             .at(-1);
           return p
@@ -69,11 +72,16 @@ export class AircraftLayer {
           color: Color.fromCssColorString("#d9efb2"),
           dashLength: 8,
         }),
-        show: new CallbackProperty(() => this.trails && !!this.selected, false),
+        show: new CallbackProperty(() => this.trails && !!this.selected && !this.followId, false),
       },
     });
   }
   displayed(t: Track) {
+    if(t.id===this.followId){
+      const sample=followSample(t,this.now());
+      if(sample)this.followFrame=sample;
+      if(this.followFrame)return this.followFrame;
+    }
     if (!this.observerView) return displayPosition(t, this.now() - 10, this.now());
     const o = t.latest;
     return {lat:o.lat,lon:o.lon,ground:o.ground,
@@ -87,7 +95,9 @@ export class AircraftLayer {
       p.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
     );
   }
-  update(tracks: Track[], selected: string | null, trails: boolean, observerView = false) {
+  update(tracks: Track[], selected: string | null, trails: boolean, observerView = false, followId:string|null = null) {
+    if(this.followId!==followId)this.followFrame=null;
+    this.followId=followId;
     this.observerView = observerView;
     trails = trails && !observerView;
     this.selected = selected;
@@ -97,7 +107,7 @@ export class AircraftLayer {
     const chosen = selected ? this.tracks.get(selected) : null;
     if (trails && chosen)
       for (const o of chosen.history) {
-        if (o.position_time !== null && o.position_time <= this.now() - 10)
+        if (o.position_time !== null && o.position_time <= (this.followFrame?.renderTime ?? this.now() - 10) && (this.followId!==chosen.id || Number.isFinite(o.alt_geom_m??o.alt_baro_m)))
           this.points.add({
             position: Cartesian3.fromDegrees(
               o.lon,
@@ -131,7 +141,7 @@ export class AircraftLayer {
               Transforms.headingPitchRollQuaternion(
                 this.position(current()),
                 new HeadingPitchRoll(
-                  CMath.toRadians((current().latest.track_deg ?? 0) - 90),
+                  CMath.toRadians((id===this.followId&&this.followFrame ? this.followFrame.heading??0 : current().latest.heading_deg??current().latest.track_deg??0) - 90),
                   0,
                   0,
                 ),
@@ -139,6 +149,7 @@ export class AircraftLayer {
             false,
           ),
           billboard: {
+            show:new CallbackProperty(()=>id!==this.followId||!this.models,false),
             image: amber,
             width: 29,
             height: 29,
@@ -163,7 +174,7 @@ export class AircraftLayer {
           },
           model: {
             uri: `${import.meta.env.BASE_URL}models/generic-aircraft.glb`,
-            minimumPixelSize: 24,
+            minimumPixelSize: new CallbackProperty(()=>id===this.followId?96:24,false),
             maximumScale: 100,
             scale: 1,
             show: new CallbackProperty(() => {
@@ -171,7 +182,7 @@ export class AircraftLayer {
               return (
                 this.models &&
                 (displayed.altitude !== null || displayed.ground === true) &&
-                this.viewer.camera.positionCartographic.height < 12000
+                (id===this.followId || this.viewer.camera.positionCartographic.height < 12000)
               );
             }, false),
             distanceDisplayCondition: new DistanceDisplayCondition(0, 15000),
@@ -186,8 +197,8 @@ export class AircraftLayer {
             pixelOffset: new Cartesian2(0, 24),
             show: new CallbackProperty(
               () =>
-                id === this.selected ||
-                this.viewer.camera.positionCartographic.height < 70000,
+                id!==this.followId && (id === this.selected ||
+                this.viewer.camera.positionCartographic.height < 70000),
               false,
             ),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -200,8 +211,8 @@ export class AircraftLayer {
           .filter(
             (o) =>
               o.position_time !== null &&
-              o.position_time <= this.now() - 10 &&
-              o.session_id === t.session_id,
+              o.position_time <= (this.followFrame?.renderTime ?? this.now() - 10) &&
+              o.session_id === t.session_id && (this.followId!==t.id || Number.isFinite(o.alt_geom_m??o.alt_baro_m)),
           )
           .map((o) =>
             Cartesian3.fromDegrees(

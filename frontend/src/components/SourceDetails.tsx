@@ -124,11 +124,11 @@ export default function SourceDetails({
             <div><dt>Next check</dt><dd>{regional.next_retry == null ? "Not scheduled" : new Date(regional.next_retry * 1000).toISOString()}</dd></div>
             {regional.error_code && <div><dt>Source notice</dt><dd>{regional.error_code}</dd></div>}
           </dl>}
-          <p>When enabled, FlyItalyADSB checks a 500 km radius every 30 seconds.
+          <p>When enabled, FlyItalyADSB checks the selected region every 30 seconds: 500 km around Singapore, or 200 km around London or Tokyo.
             Aircraft appear once using the newest reported position. Ground aircraft
             are included when reported; this is not a complete parking inventory.
             Historical routes describe a callsign’s usual route in the last seven days, not today’s confirmed itinerary.
-            Likely inbound/outbound labels also require a fresh airborne position and compatible course.
+            Changi inbound/outbound labels apply only in the Singapore region and require a fresh airborne position and compatible course.
             Gates, boarding, schedules and exact arrival times are available through the official Changi board links.</p>
           <a href="https://flyitalyadsb.com/" target="_blank" rel="noreferrer">FlyItalyADSB <ExternalLink size={12} /></a>
           <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">Data: CC BY-SA 4.0 <ExternalLink size={12} /></a>
@@ -154,6 +154,8 @@ export default function SourceDetails({
         </div>
         <div className="source-card">
           <h3>Airport & map geometry</h3>
+          <p>The follow view can use Sentinel-2 cloudless imagery from 2017 by EOX, containing modified Copernicus Sentinel data, under CC BY 4.0. It is a historical backdrop with flat terrain, not a current airport image.</p>
+          <a href="https://maps.eox.at/" target="_blank" rel="noreferrer">EOX Maps <ExternalLink size={12}/></a>
           <p>
             {airport?.edition}. Authoritative CAAS verification remains pending.
             Building masses and height placement are approximations. No runway

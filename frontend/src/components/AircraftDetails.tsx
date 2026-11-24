@@ -130,7 +130,7 @@ export default function AircraftDetails({
         aria-label={follow ? "Stop following" : "Follow aircraft"}
         onClick={onFollow}
         disabled={state === "lost" || !followAvailable}
-        title={!followAvailable ? "Map renderer unavailable" : undefined}
+        title={!followAvailable ? "Follow needs an available map and a fresh airborne position with altitude" : undefined}
       >
         <Crosshair size={16} />
         {follow ? "Stop following" : "Follow aircraft"}
