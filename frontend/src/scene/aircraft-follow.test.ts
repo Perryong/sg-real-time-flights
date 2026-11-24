@@ -25,9 +25,19 @@ it('selects the reported variant and switches to the generic mesh on asset failu
  const viewer={entities:new EntityCollection(),camera:{positionCartographic:{height:1000}},scene:{primitives:{add:(x:unknown)=>x,remove:()=>true}}};
  const layer=new AircraftLayer(viewer as never,()=>1000),t=track([1000]);t.latest.aircraft_type='A359';
  layer.update([t],t.id,true,false,t.id);
- const uri=()=>layer.entities.get(t.id)!.model!.uri!.getValue(JulianDate.now());
+ const uri=()=>layer.entities.get(t.id)!.model!.uri!.getValue(JulianDate.now()).url;
  expect(uri()).toContain('airbus-a350-900.glb');
  layer.unavailableModels.add('airbus-a350-900.glb');expect(uri()).toContain('generic-aircraft.glb');
  t.latest.aircraft_type='B77W';expect(uri()).toContain('boeing-777-300er.glb');
+ layer.clear();
+});
+it('switches the followed target to a marker when the generic model is unavailable',()=>{
+ const viewer={entities:new EntityCollection(),camera:{positionCartographic:{height:1000}},scene:{primitives:{add:(x:unknown)=>x,remove:()=>true}}};
+ const layer=new AircraftLayer(viewer as never,()=>1000),t=track([1000]);
+ layer.update([t],t.id,true,false,t.id);
+ const entity=layer.entities.get(t.id)!;
+ layer.models=false;
+ expect(entity.billboard!.show!.getValue(JulianDate.now())).toBe(true);
+ expect(entity.model!.show!.getValue(JulianDate.now())).toBe(false);
  layer.clear();
 });

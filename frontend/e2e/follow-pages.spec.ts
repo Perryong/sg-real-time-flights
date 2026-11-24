@@ -88,3 +88,21 @@ test('shows distinct A350 and 777 models with an explicit fallback for other typ
  await page.getByLabel('Follow another aircraft').selectOption({label:'SYN 102'});
  await expect(panel.getByText(/Generic aircraft/)).toBeVisible();
 });
+
+for(const genericFails of [false,true])test(`recovers from actual model request failure with ${genericFails?'a position marker':'a generic model'}`,async({page})=>{
+ const requests=new Map<string,number>();
+ await page.route('**/models/*.glb',async route=>{
+  const file=new URL(route.request().url()).pathname.split('/').at(-1)!;
+  const count=(requests.get(file)??0)+1;requests.set(file,count);
+  if(count>1&&(file==='airbus-a350-900.glb'||(genericFails&&file==='generic-aircraft.glb')))return route.abort();
+  return route.continue();
+ });
+ await page.goto('./');await page.getByRole('button',{name:'Demo',exact:true}).click();
+ await page.getByRole('button',{name:'Pause playback'}).click();
+ await page.getByRole('button',{name:'Select SYN 101',exact:true}).click();
+ await page.getByRole('button',{name:'Follow aircraft',exact:true}).click();
+ await expect(page.getByText(genericFails?'Aircraft model unavailable; showing position markers.':'An aircraft-specific model is unavailable; using the generic model.')).toBeVisible({timeout:20000});
+ await expect.poll(()=>requests.get('generic-aircraft.glb')??0).toBeGreaterThan(1);
+ await expect(page.getByRole('region',{name:'3D aircraft follow'})).toBeVisible();
+ await page.screenshot({path:`/tmp/follow-recovered-${genericFails?'marker':'generic'}.jpg`});
+});

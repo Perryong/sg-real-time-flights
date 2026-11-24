@@ -50,3 +50,6 @@ Local verification for the realism extension: 82 frontend tests, 171 backend tes
 
 ## Commit and push authorized
 The user subsequently requested proceeding with the next steps and pushing the code. This supersedes the earlier local-only restriction for committing and pushing the feature branch. Fresh verification passed: 82 frontend tests, 171 backend tests, TypeScript and Pages build. The existing PR #6 will receive the updated implementation and description. The GitHub Pages workflow deploys only from main; this feature-branch push does not publish the site.
+
+## Merge and publication authorized
+The user explicitly requested pushing, merging and updating the web application. Before release, actual Cesium model-request failures now notify the same fallback handler as preflight failures. A failed type-specific mesh selects the generic model; a failed generic mesh enables the position marker. Resources are cached per model and late errors are ignored after disposal. Two new browser regressions failed before the fix and passed afterward; screenshots confirmed the generic model and marker. Independent read-only review found no further actionable issues in this fix. Final local validation: 78 frontend tests, 171 backend tests, TypeScript/Pages build and all six follow browser flows passed. The Changi Today summary removal is included in this release.

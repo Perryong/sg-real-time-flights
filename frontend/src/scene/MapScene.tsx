@@ -142,7 +142,7 @@ export default function MapScene(props: Props) {
         destination: regionalExtent,
         orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       });
-      layer.current = new AircraftLayer(viewer, () => latest.current.getNow());
+      layer.current = new AircraftLayer(viewer, () => latest.current.getNow(),message=>latest.current.onError(message));
       modelFiles.forEach(file=>fetch(`${import.meta.env.BASE_URL}models/${file}`, { signal: modelAbort.signal })
         .then(async (r) => {
           if (!r.ok) throw Error();
@@ -152,13 +152,7 @@ export default function MapScene(props: Props) {
         })
         .catch(() => {
           if (!modelAbort.signal.aborted) {
-            if (layer.current) {
-              if(file==='generic-aircraft.glb')layer.current.models=false;
-              else layer.current.unavailableModels.add(file);
-            }
-            latest.current.onError(
-              file==='generic-aircraft.glb'?'Aircraft model unavailable; showing position markers.':'An aircraft-specific model is unavailable; using the generic model.',
-            );
+            layer.current?.modelUnavailable(file);
           }
         }));
       handler = new ScreenSpaceEventHandler(viewer.scene.canvas);

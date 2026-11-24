@@ -1,5 +1,6 @@
 import {
   Cartesian3,
+  Resource,
   Color,
   CallbackProperty,
   CallbackPositionProperty,
@@ -37,6 +38,8 @@ export class AircraftLayer {
   trails = true;
   models = true;
   unavailableModels = new Set<string>();
+  private modelResources = new Map<string, Resource>();
+  private disposed = false;
   observerView = false;
   followId: string | null = null;
   followFrame: FollowSample | null = null;
@@ -45,6 +48,7 @@ export class AircraftLayer {
   constructor(
     private viewer: Viewer,
     private now: () => number,
+    private onModelError: (message:string) => void = () => {},
   ) {
     this.points = viewer.scene.primitives.add(new PointPrimitiveCollection());
     this.segment = viewer.entities.add({
@@ -178,7 +182,7 @@ export class AircraftLayer {
           model: {
             uri: new CallbackProperty(()=>{
               const file=aircraftModel(current().latest.aircraft_type).file;
-              return `${import.meta.env.BASE_URL}models/${this.unavailableModels.has(file)?'generic-aircraft.glb':file}`;
+              return this.modelResource(this.unavailableModels.has(file)?'generic-aircraft.glb':file);
             },false),
             minimumPixelSize: new CallbackProperty(()=>id===this.followId?96:24,false),
             maximumScale: 100,
@@ -245,7 +249,32 @@ export class AircraftLayer {
         );
     }
   }
+  modelUnavailable(file:string) {
+    if(this.disposed||this.unavailableModels.has(file))return;
+    this.unavailableModels.add(file);
+    if(file==='generic-aircraft.glb')this.models=false;
+    this.onModelError(file==='generic-aircraft.glb'
+      ?'Aircraft model unavailable; showing position markers.'
+      :'An aircraft-specific model is unavailable; using the generic model.');
+  }
+  private modelResource(file:string):Resource {
+    let resource=this.modelResources.get(file);
+    if(!resource){
+      resource=new Resource({
+        url:`${import.meta.env.BASE_URL}models/${file}`,
+        retryAttempts:1,
+        retryCallback:()=>{
+          // Notify on the actual Cesium request; the next frame selects the fallback URI.
+          this.modelUnavailable(file);
+          return false;
+        },
+      });
+      this.modelResources.set(file,resource);
+    }
+    return resource;
+  }
   clear() {
+    this.disposed=true;this.modelResources.clear();
     for (const e of this.entities.values()) this.viewer.entities.remove(e);
     this.entities.clear();
     this.tracks.clear();
