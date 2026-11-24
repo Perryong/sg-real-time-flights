@@ -52,11 +52,12 @@ async def test_parallel_refresh_is_deduplicated_and_late_owner_is_fenced(weather
     make, requests, _, client = weather_factory
     try:
         outcomes = await asyncio.gather(*(make().snapshot(str(i)) for i in range(10)), return_exceptions=True)
-        assert any(isinstance(x, dict) and x['state'] == 'fresh' for x in outcomes)
+        fresh = next((x for x in outcomes if isinstance(x, dict) and x['state'] == 'fresh'), None)
+        assert fresh is not None
         assert all(isinstance(x, (dict, WeatherUnavailable)) for x in outcomes)
         assert len(requests) == 2
         cache = make().cache
-        assert not await cache.publish('wrong-owner', {'frame': outcomes[0]}, 60)
+        assert not await cache.publish('wrong-owner', {'frame': fresh}, 60)
     finally: await client.aclose()
 
 
