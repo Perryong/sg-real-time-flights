@@ -25,6 +25,7 @@ for(const mobile of [false,true])test(`immersive follow works ${mobile?'on mobil
 });
 
 test('regional follow falls back from satellite, pauses stale data and exits when lost',async({page})=>{
+ await page.setViewportSize({width:1024,height:900});
  const fs=await import('node:fs');
  const fixture=JSON.parse(fs.readFileSync('../tests/fixtures/scenarios/changi-demo.json','utf8'));
  const now=Date.now()/1000;
@@ -44,7 +45,7 @@ test('regional follow falls back from satellite, pauses stale data and exits whe
  await page.route('https://tiles.maps.eox.at/**',r=>r.abort());
  await page.goto('./');
  await expect(page.getByRole('button',{name:'Select SG TEST'})).toBeVisible();
- await page.getByLabel('Airspace region',{exact:true}).selectOption('london');
+ await page.getByLabel('Map region',{exact:true}).selectOption('london');
  await expect(page.getByRole('button',{name:'Select LONDON TEST'})).toBeVisible();
  await expect(page.getByRole('button',{name:'Select SG TEST'})).toHaveCount(0);
  await expect(page.getByLabel('Detected landings')).toHaveCount(0);
@@ -58,4 +59,32 @@ test('regional follow falls back from satellite, pauses stale data and exits whe
  await page.clock.fastForward(101000);
  await expect(panel).toHaveCount(0);
  expect(requests).toContain('london');
+});
+
+test('shows distinct A350 and 777 models with an explicit fallback for other types',async({page})=>{
+ const loaded=new Set<string>();page.on('response',r=>{if(r.ok()&&r.url().endsWith('.glb'))loaded.add(r.url().split('/').at(-1)!)});
+ await page.goto('./');await page.getByRole('button',{name:'Demo',exact:true}).click();
+ await page.getByRole('button',{name:'Pause playback'}).click();
+ await page.getByRole('button',{name:'Select SYN 101',exact:true}).click();
+ await page.getByRole('button',{name:'Follow aircraft',exact:true}).click();
+ const panel=page.getByRole('region',{name:'3D aircraft follow'});
+ await expect(panel.getByText(/Airbus A350-900/)).toBeVisible();
+ await panel.getByText('View controls',{exact:true}).click();
+ await page.getByLabel('Follow orbit',{exact:true}).fill('55');
+ await page.getByLabel('Follow elevation',{exact:true}).fill('22');
+ await panel.getByText('View controls',{exact:true}).click();
+ await page.waitForTimeout(1200);
+ await page.screenshot({path:'/tmp/changi-model-a350.jpg'});
+ await panel.getByText('View controls',{exact:true}).click();
+ await page.getByLabel('Follow another aircraft').selectOption({label:'SYN 104'});
+ await expect(panel.getByText(/Boeing 777-300ER/)).toBeVisible();
+ await page.getByLabel('Follow orbit',{exact:true}).fill('55');
+ await page.getByLabel('Follow elevation',{exact:true}).fill('22');
+ await panel.getByText('View controls',{exact:true}).click();
+ await page.waitForTimeout(1200);
+ await page.screenshot({path:'/tmp/changi-model-777.jpg'});
+ expect(loaded.has('airbus-a350-900.glb')).toBe(true);expect(loaded.has('boeing-777-300er.glb')).toBe(true);
+ await panel.getByText('View controls',{exact:true}).click();
+ await page.getByLabel('Follow another aircraft').selectOption({label:'SYN 102'});
+ await expect(panel.getByText(/Generic aircraft/)).toBeVisible();
 });

@@ -313,7 +313,7 @@ export default function App() {
         <div className="map-topline">
           <div className="map-breadcrumb">
             <span className="tiny-dot" />
-            <span>SINGAPORE</span>
+            <span>{activeRegion.name==='Singapore'?'SINGAPORE':activeRegion.name==='London'?'UNITED KINGDOM':'JAPAN'}</span>
             <span className="slash">/</span>
             <strong>{activeRegion.name.toUpperCase()}</strong>
             <span className="region-badge">{activeRegion.radius} km</span>
@@ -452,6 +452,7 @@ export default function App() {
         )}
         {chosen && !follow && view!=='sky' && (
           <AircraftDetails
+            isChangi={activeRegion.name==='Singapore'}
             track={chosen}
             now={feed.now}
             follow={follow}
@@ -588,6 +589,7 @@ export default function App() {
       </footer>
       {sources && (
         <SourceDetails
+          isChangi={activeRegion.name==='Singapore'}
           airport={airport}
           status={upstream}
           transport={feed.transport}

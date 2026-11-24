@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { Track } from "../data/types";
+import {aircraftModel} from "../data/aircraftModels";
 import RouteDetails from "./RouteDetails";
 import { freshness } from "../data/freshness";
 import { displayPosition } from "../data/display";
@@ -21,6 +22,7 @@ export const formatTime = (t: number | null) =>
       }) + " SGT";
 interface Props {
   track: Track;
+  isChangi?:boolean;
   now: number;
   follow: boolean;
   followAvailable?: boolean;
@@ -32,6 +34,7 @@ export default function AircraftDetails({
   now,
   follow,
   followAvailable = true,
+  isChangi = true,
   onFollow,
   onClose,
 }: Props) {
@@ -65,15 +68,15 @@ export default function AircraftDetails({
         <div>
           <h2>{o.callsign ?? o.provider_id}</h2>
           <p>
-            {o.aircraft_type ?? "Unknown type"} <span>·</span>{" "}
+            {aircraftModel(o.aircraft_type).specific?aircraftModel(o.aircraft_type).name:o.aircraft_type??"Unknown type"} <span>·</span>{" "}
             {o.registration ?? "Unknown registration"}
           </p>
         </div>
       </div>
-      <RouteDetails observation={o} now={now} />
+      <RouteDetails observation={o} now={now} isChangi={isChangi} />
       <div className="aircraft-silhouette" aria-hidden="true">
         <Plane size={116} strokeWidth={0.8} />
-        <span>GENERIC MODEL · ESTIMATED ATTITUDE</span>
+        <span>{aircraftModel(o.aircraft_type).specific?"TYPE-SPECIFIC MODEL":"GENERIC MODEL"} · ESTIMATED ATTITUDE</span>
       </div>
       <div className="detail-tags">
         <span className={`badge ${o.mode === "live" ? "" : "amber"}`}>

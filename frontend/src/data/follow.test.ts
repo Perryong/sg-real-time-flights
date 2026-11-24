@@ -23,3 +23,15 @@ describe('follow display frame',()=>{
   expect(followSample(t,1020)).toBeNull();
  });
 });
+it('uses a common altitude source across a bracket',()=>{
+ const t=track([1000,1020]);t.history[0].alt_geom_m=1200;t.history[1].alt_geom_m=null;t.latest=t.history[1];
+ const p=followSample(t,1020)!;expect(p.altitude).toBe(1000);expect(p.altitudeLabel).toBe('Barometric estimate');
+});
+it('uses valid endpoint measurements even when the other endpoint is unknown',()=>{
+ const t=track([1010,1020]);t.history[0].speed_mps=150;t.history[1].speed_mps=null;t.history[1].alt_geom_m=null;t.history[1].alt_baro_m=null;t.latest=t.history[1];
+ const p=followSample(t,1020)!;expect(p.altitude).toBe(1000);expect(p.speed).toBe(150);
+});
+it('separates raw negative pressure altitude from shared camera/model placement',()=>{
+ const t=track([1000]);t.latest.alt_geom_m=null;t.latest.alt_baro_m=-30;t.history=[t.latest];
+ const p=followSample(t,1000)!;expect(p.altitude).toBe(-30);expect(p.placementAltitude).toBe(5);
+});

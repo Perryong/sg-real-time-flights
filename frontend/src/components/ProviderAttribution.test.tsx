@@ -29,7 +29,7 @@ it("credits the configured FlyItalyADSB source and explains its own status", () 
 it("explains the personal-use data source in source details", () => {
   render(<SourceDetails airport={null} transport="connected" onClose={() => {}} />);
   expect(screen.getByRole("link", { name: /ADSB.fi/ }).getAttribute("href")).toBe("https://adsb.fi/");
-  expect(screen.getByText(/personal, non-commercial/i)).toBeTruthy();
+  expect(screen.getByText(/Live observations are provided by ADSB.fi for personal, non-commercial/i)).toBeTruthy();
 });
 it("credits OpenSky when the ground supplement is active even during an outage", () => {
   render(<TrafficList {...props} mode="live" sources={{opensky:{enabled:true,state:"paused",error_code:"403",last_attempt:0,last_success:null,next_retry:null,requests:1,remaining_credits:null}}} />);
@@ -46,4 +46,9 @@ it("shows ADSB.fi's own paused state even when OpenSky is healthy", () => {
   render(<SourceDetails airport={null} transport="connected" status={status} onClose={()=>{}} />);
   expect(screen.getByText("ADSB.fi · paused")).toBeTruthy();
   expect(screen.getByText("Access notice: 403")).toBeTruthy();
+});
+it('attributes foreign regions only to the regional provider',()=>{
+ render(<SourceDetails airport={null} isChangi={false} transport="connected" onClose={()=>{}} />);
+ expect(screen.queryByText(/Live observations are provided by ADSB.fi/)).toBeNull();
+ expect(screen.getByText(/regional view uses FlyItalyADSB/)).toBeTruthy();
 });

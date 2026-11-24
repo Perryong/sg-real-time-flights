@@ -4,18 +4,20 @@ import { X, ExternalLink, Layers3 } from "lucide-react";
 import type { Airport, FeedStatus } from "../data/types";
 export default function SourceDetails({
   airport,
+  isChangi = true,
   status,
   transport,
   onClose,
 }: {
   airport: Airport | null;
+  isChangi?:boolean;
   status?: FeedStatus;
   transport: string;
   onClose: () => void;
 }) {
   const ground = status?.sources?.opensky;
   const regional = status?.sources?.flyitalyadsb;
-  const primary = status?.sources?.["adsb.fi"];
+  const primary = status?.sources?.[isChangi?"adsb.fi":"flyitalyadsb"];
   const primarySuccess = primary ? primary.last_success : status?.last_success;
   const primaryRetry = primary ? primary.next_retry : status?.next_retry;
   const box = useRef<HTMLElement>(null);
@@ -83,7 +85,7 @@ export default function SourceDetails({
             </div>
             <div>
               <dt>Upstream</dt>
-              <dd>{primary ? `ADSB.fi · ${primary.state}` : status?.upstream_state ?? "Unknown"}</dd>
+              <dd>{primary ? `${isChangi?"ADSB.fi":"FlyItalyADSB"} · ${primary.state}` : status?.upstream_state ?? "Unknown"}</dd>
             </div>
             <div>
               <dt>Last successful response</dt>
@@ -103,18 +105,16 @@ export default function SourceDetails({
             </div>
           </dl>
           {primary?.error_code && <p>Access notice: {primary.error_code}</p>}
-          <p>
+          <p>{isChangi?<>
             Live observations are provided by ADSB.fi for personal, non-commercial
             use. The ADSB.fi search covers 100 nautical miles (185.2 km) around Changi,
             including Singapore and nearby Malaysian and Indonesian airspace.
             All aircraft with usable reported positions are included, regardless
             of airline or callsign. This is not a complete aircraft census:
             coverage depends on receivers, particularly on the ground.
-            Live failures never enable demo traffic.
+            Live failures never enable demo traffic.</>:<>This regional view uses FlyItalyADSB within 200 km of the selected airport. Receiver coverage varies; missing aircraft are not inferred. Live failures never enable demo traffic.</>}
           </p>
-          <a href="https://adsb.fi/" target="_blank" rel="noreferrer">
-            ADSB.fi <ExternalLink size={12} />
-          </a>
+          {isChangi&&<a href="https://adsb.fi/" target="_blank" rel="noreferrer">ADSB.fi <ExternalLink size={12} /></a>}
         </div>
         <div className="source-card">
           <h3>FlyItalyADSB · Regional supplement</h3>
@@ -154,7 +154,10 @@ export default function SourceDetails({
         </div>
         <div className="source-card">
           <h3>Airport & map geometry</h3>
-          <p>The follow view can use Sentinel-2 cloudless imagery from 2017 by EOX, containing modified Copernicus Sentinel data, under CC BY 4.0. It is a historical backdrop with flat terrain, not a current airport image.</p>
+          <p>A350 and 777 visuals adapt Widebody Airliner by Polyfork (CC BY 4.0), with approximate proportions and stowed gear. The decorative sky is Kloofendal 48d Partly Cloudy by Greg Zaal and Jarod Guest, Poly Haven (CC0), sourced through 3DStreet. It does not represent live weather.</p>
+          <a href="https://polyfork.dev/asset/widebody-airliner-ae0a5a" target="_blank" rel="noreferrer">Widebody Airliner · Polyfork</a>
+          <a href="https://github.com/Perryong/3dstreet" target="_blank" rel="noreferrer">3DStreet environment reference</a>
+          <p>The follow view can use Sentinel-2 cloudless imagery from 2024 by EOX, containing modified Copernicus Sentinel data, under CC BY-NC-SA 4.0 for this personal, non-commercial tracker. It is a historical backdrop with flat terrain, not a current airport image.</p>
           <a href="https://maps.eox.at/" target="_blank" rel="noreferrer">EOX Maps <ExternalLink size={12}/></a>
           <p>
             {airport?.edition}. Authoritative CAAS verification remains pending.

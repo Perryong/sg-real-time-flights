@@ -16,8 +16,10 @@ import {
   PointPrimitiveCollection,
   PolylineDashMaterialProperty,
   PolylineGraphics,
+  PolylineGlowMaterialProperty,
 } from "cesium";
 import {followSample,type FollowSample} from "../data/follow";
+import {aircraftModel} from "../data/aircraftModels";
 import { displayPosition } from "../data/display";
 import { freshness } from "../data/freshness";
 import type { Track } from "../data/types";
@@ -34,6 +36,7 @@ export class AircraftLayer {
   selected: string | null = null;
   trails = true;
   models = true;
+  unavailableModels = new Set<string>();
   observerView = false;
   followId: string | null = null;
   followFrame: FollowSample | null = null;
@@ -92,7 +95,7 @@ export class AircraftLayer {
     return Cartesian3.fromDegrees(
       p.lon,
       p.lat,
-      p.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
+      t.id===this.followId&&this.followFrame?this.followFrame.placementAltitude:p.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
     );
   }
   update(tracks: Track[], selected: string | null, trails: boolean, observerView = false, followId:string|null = null) {
@@ -105,7 +108,7 @@ export class AircraftLayer {
     this.tracks = new Map(tracks.map((t) => [t.id, t]));
     this.points.removeAll();
     const chosen = selected ? this.tracks.get(selected) : null;
-    if (trails && chosen)
+    if (trails && chosen && !followId)
       for (const o of chosen.history) {
         if (o.position_time !== null && o.position_time <= (this.followFrame?.renderTime ?? this.now() - 10) && (this.followId!==chosen.id || Number.isFinite(o.alt_geom_m??o.alt_baro_m)))
           this.points.add({
@@ -149,7 +152,7 @@ export class AircraftLayer {
             false,
           ),
           billboard: {
-            show:new CallbackProperty(()=>id!==this.followId||!this.models,false),
+            show:new CallbackProperty(()=>!this.followId||(id===this.followId&&!this.models),false),
             image: amber,
             width: 29,
             height: 29,
@@ -173,9 +176,13 @@ export class AircraftLayer {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           model: {
-            uri: `${import.meta.env.BASE_URL}models/generic-aircraft.glb`,
+            uri: new CallbackProperty(()=>{
+              const file=aircraftModel(current().latest.aircraft_type).file;
+              return `${import.meta.env.BASE_URL}models/${this.unavailableModels.has(file)?'generic-aircraft.glb':file}`;
+            },false),
             minimumPixelSize: new CallbackProperty(()=>id===this.followId?96:24,false),
             maximumScale: 100,
+            imageBasedLightingFactor:new Cartesian2(1,.6),
             scale: 1,
             show: new CallbackProperty(() => {
               const displayed = this.displayed(current());
@@ -197,7 +204,7 @@ export class AircraftLayer {
             pixelOffset: new Cartesian2(0, 24),
             show: new CallbackProperty(
               () =>
-                id!==this.followId && (id === this.selected ||
+                !this.followId && (id === this.selected ||
                 this.viewer.camera.positionCartographic.height < 70000),
               false,
             ),
@@ -226,6 +233,10 @@ export class AircraftLayer {
             width: 2,
             material: Color.fromCssColorString("#9fce7a").withAlpha(0.65),
           });
+        e.polyline.material=this.followId===t.id
+          ?new PolylineGlowMaterialProperty({color:Color.fromCssColorString('#9969e8'),glowPower:.12})
+          :new PolylineGlowMaterialProperty({color:Color.fromCssColorString('#9fce7a').withAlpha(.65),glowPower:0});
+        e.polyline.width=new ConstantProperty(this.followId===t.id?3:2);
         e.polyline.positions = new ConstantProperty(positions);
       } else e.polyline = undefined;
       if (e.billboard)

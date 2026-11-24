@@ -1744,3 +1744,8 @@ input {
 @media(max-width:799px){.mobile-region-picker{display:block;position:absolute;z-index:5;left:64px;top:52px;max-width:130px;font-size:11px}.follow-panel{width:calc(100% - 20px);bottom:18px;max-height:49%;border-radius:12px}.follow-card-heading{padding:12px;gap:10px}.follow-plane-badge{width:38px;height:38px}.follow-identity h2{font-size:21px}.follow-identity p{font-size:10px}.follow-route{padding:10px 12px}.follow-route>strong{font-size:19px}.follow-route>span{font-size:9px;max-width:160px}.follow-measures{padding:10px 12px 3px;gap:7px}.follow-measures strong{font-size:19px}.follow-measures div>span{font-size:9px}.follow-status{padding:0 12px;font-size:9px}.follow-options summary{padding:9px 12px}.follow-controls{grid-template-columns:1fr 1fr;padding:6px 12px 14px}.follow-controls label:first-child{grid-column:1/-1}}
 .following .map-canvas {left:0;bottom:var(--follow-panel-height,320px)}
 .follow-panel {bottom:12px}
+@media(min-width:800px) and (max-width:1150px){.mobile-region-picker{display:block;position:absolute;z-index:5;left:84px;top:14px;max-width:160px;font-size:12px}}
+
+.follow-route.route-unknown {padding:8px 20px;justify-content:center}
+.follow-route.route-unknown>strong {display:none}
+.follow-route.route-unknown>span svg {display:none}

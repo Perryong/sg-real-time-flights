@@ -39,3 +39,14 @@ Interfaces: region id singapore|london|tokyo; endpoint /api/aircraft?region=id (
 
 ## Execution record
 Ruling: user approved the issue and requested implementation; preserve the established inline/branch/review/publish workflow without another approval loop.
+
+## User steering: release paused
+On November 24 the user requested no further Git commits and chose aircraft-specific A350/777 models. The model extension and four review fixes remain local and uncommitted. Draft PR #6 still contains only 9be6df6; no merge or Pages release has occurred. Backend regional support had already been deployed before the pause. See the aircraft-models spec for the revised local scope.
+
+## Local realism extension
+On November 24, the user requested 3DStreet and Polyfork catalog integration while retaining the no-commit restriction. The four aircraft representations now adapt Polyfork's CC BY 4.0 Widebody Airliner mesh, with smoothed surfaces, stowed gear and approximate proportions. The EOX 2017 placeholder imagery is replaced by the 2024 layer under CC BY-NC-SA 4.0. Cesium renders the CC0 Poly Haven sky referenced by 3DStreet, camera-side daylight and a purple observed trail. No 3DStreet application code or second rendering engine was added. Overpass building queries failed; no extra buildings were added. The current terrain is flat and imagery historical.
+
+Local verification for the realism extension: 82 frontend tests, 171 backend tests, typecheck and Pages build passed. Four follow browser flows passed again after the final lighting change; both observer browser flows passed. Manual inspection checked satellite tiles after loading, the sky at a low camera elevation, smoothed aircraft shading and the observed trail. Screenshot: /tmp/changi-realistic-follow-local.jpg. Preview is http://127.0.0.1:4177/sg-real-time-flights/. HEAD remains 9be6df631c753d1d940729ea838a7eebf9be3bee; all extension changes are uncommitted and unpublished.
+
+## Commit and push authorized
+The user subsequently requested proceeding with the next steps and pushing the code. This supersedes the earlier local-only restriction for committing and pushing the feature branch. Fresh verification passed: 82 frontend tests, 171 backend tests, TypeScript and Pages build. The existing PR #6 will receive the updated implementation and description. The GitHub Pages workflow deploys only from main; this feature-branch push does not publish the site.

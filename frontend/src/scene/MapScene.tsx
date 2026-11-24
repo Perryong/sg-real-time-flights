@@ -29,6 +29,8 @@ import {type FollowCamera} from "../data/follow";
 import type {FollowStyle} from "../components/FollowPanel";
 import { guardCameraDoubleClick } from "./cameraGuard";
 import type {} from "./performance";
+import {modelFiles} from "../data/aircraftModels";
+import {addFollowEnvironment,satelliteBackdrop} from "./environment";
 import { DarkMapProvider } from "./imagery";
 // Fit geographic bounds through Cesium's camera API so the shorter screen
 // dimension contains the region in both widescreen and portrait layouts.
@@ -105,6 +107,7 @@ export default function MapScene(props: Props) {
       viewerRef.current = viewer;
       guardCameraDoubleClick(viewer.screenSpaceEventHandler,()=>latest.current.view==='sky'||latest.current.placing||latest.current.follow);
       viewer.resolutionScale = Math.min(window.devicePixelRatio, 1.5);
+      viewer.scene.postProcessStages.fxaa.enabled=true;
       viewer.scene.backgroundColor = Color.fromCssColorString("#08141e");
       viewer.scene.globe.baseColor = Color.fromCssColorString("#102833");
       viewer.scene.globe.showGroundAtmosphere = false;
@@ -125,8 +128,8 @@ export default function MapScene(props: Props) {
       viewer.imageryLayers.add(new ImageryLayer(imagery, { brightness: 0.8 }));
       viewer.imageryLayers.add(new ImageryLayer(dayImagery, { show: false }));
       const satellite=new UrlTemplateImageryProvider({
-        url:'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2017_3857/default/g/{z}/{y}/{x}.jpg',maximumLevel:13,
-        credit:new Credit('<a href="https://maps.eox.at/">Sentinel-2 cloudless by EOX</a> · modified Copernicus Sentinel data 2017 · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>',true),
+        url:satelliteBackdrop.url,maximumLevel:13,
+        credit:new Credit(satelliteBackdrop.credit,true),
       });
       satellite.errorEvent.addEventListener(()=>{
         if(latest.current.follow&&latest.current.followStyle==='satellite'){
@@ -140,7 +143,7 @@ export default function MapScene(props: Props) {
         orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       });
       layer.current = new AircraftLayer(viewer, () => latest.current.getNow());
-      fetch(`${import.meta.env.BASE_URL}models/generic-aircraft.glb`, { signal: modelAbort.signal })
+      modelFiles.forEach(file=>fetch(`${import.meta.env.BASE_URL}models/${file}`, { signal: modelAbort.signal })
         .then(async (r) => {
           if (!r.ok) throw Error();
           const bytes = await r.arrayBuffer();
@@ -149,12 +152,15 @@ export default function MapScene(props: Props) {
         })
         .catch(() => {
           if (!modelAbort.signal.aborted) {
-            if (layer.current) layer.current.models = false;
+            if (layer.current) {
+              if(file==='generic-aircraft.glb')layer.current.models=false;
+              else layer.current.unavailableModels.add(file);
+            }
             latest.current.onError(
-              "Aircraft model unavailable; showing position markers.",
+              file==='generic-aircraft.glb'?'Aircraft model unavailable; showing position markers.':'An aircraft-specific model is unavailable; using the generic model.',
             );
           }
-        });
+        }));
       handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
       handler.setInputAction((click: { position: any }) => {
         if(latest.current.placing){
@@ -290,6 +296,9 @@ export default function MapScene(props: Props) {
   }, [props.tracks, props.selected, props.trails, props.view, props.observer, props.follow, ready]);
   useEffect(()=>{
     const v=viewerRef.current;if(!v||!ready||!props.follow||!props.selected)return;
+    const frustum=v.camera.frustum;
+    const priorFov="fov" in frustum?frustum.fov:null;
+    if("fov" in frustum)frustum.fov=CMath.toRadians(45);
     const prior={destination:Cartesian3.clone(v.camera.positionWC),orientation:{direction:Cartesian3.clone(v.camera.directionWC),up:Cartesian3.clone(v.camera.upWC)}};
     v.camera.cancelFlight();v.trackedEntity=undefined;
     v.scene.screenSpaceCameraController.enableInputs=false;
@@ -300,10 +309,10 @@ export default function MapScene(props: Props) {
       const frame=l.followFrame;if(!frame)return;
       const {distance,orbit,elevation}=p.followCamera,azimuth=CMath.toRadians((frame.heading??0)+180+orbit),tilt=CMath.toRadians(elevation);
       const offset=new Cartesian3(Math.sin(azimuth)*distance*Math.cos(tilt),Math.cos(azimuth)*distance*Math.cos(tilt),distance*Math.sin(tilt));
-      v.camera.lookAtTransform(Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(frame.lon,frame.lat,frame.altitude)),offset);
+      v.camera.lookAtTransform(Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(frame.lon,frame.lat,frame.placementAltitude)),offset);
     };
     const remove=v.scene.preRender.addEventListener(update);update();
-    return ()=>{remove();if(v.isDestroyed())return;v.camera.lookAtTransform(Matrix4.IDENTITY);v.camera.setView(prior);v.scene.screenSpaceCameraController.enableInputs=true;};
+    return ()=>{remove();if(v.isDestroyed())return;v.camera.lookAtTransform(Matrix4.IDENTITY);v.camera.setView(prior);if(priorFov!==null&&"fov" in frustum)frustum.fov=priorFov;v.scene.screenSpaceCameraController.enableInputs=true;};
   },[props.follow,props.selected,ready]);
   useEffect(() => {
     const v = viewerRef.current;
@@ -320,6 +329,10 @@ export default function MapScene(props: Props) {
       night ? "2026-11-19T16:00:00Z" : "2026-11-19T04:00:00Z",
     );
   }, [props.night, props.follow, props.followStyle, ready]);
+  useEffect(()=>{
+    const v=viewerRef.current;if(!v||!ready||!props.follow||props.followStyle==='night')return;
+    return addFollowEnvironment(v,props.region.lat,props.region.lon,()=>latest.current.onError('Sky backdrop unavailable; using the atmosphere.'));
+  },[props.follow,props.followStyle,props.region,ready]);
   useEffect(() => {
     const v = viewerRef.current;
     if (!v || !ready) return;
@@ -328,9 +341,9 @@ export default function MapScene(props: Props) {
         !layer.current?.entities.has(e.id) &&
         e.id !== "selected-display-segment" && e.id !== "observer-pin"
       )
-        e.show = props.geometry;
+        e.show = props.geometry&&!props.follow;
     });
-  }, [props.geometry, props.airport, ready]);
+  }, [props.geometry, props.airport, props.follow, ready]);
   useEffect(()=>{
     const v=viewerRef.current;if(!v||!ready)return;
     v.entities.removeById('observer-pin');

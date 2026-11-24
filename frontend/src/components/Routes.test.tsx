@@ -31,3 +31,9 @@ it('explains historical evidence and links to official boards',()=>{
  expect(screen.getByRole('link',{name:'Official Changi arrivals'}).getAttribute('href')).toBe('https://www.changiairport.com/en/fly/flight-information/arrivals.html');
  expect(screen.getByRole('link',{name:'Official Changi departures'})).toBeTruthy();
 });
+it('keeps foreign selected-aircraft details free of Changi inference and board links',()=>{
+ render(<AircraftDetails track={inbound()} now={now} follow={false} isChangi={false} onFollow={()=>{}} onClose={()=>{}} />);
+ expect(screen.queryByRole('link',{name:'Official Changi arrivals'})).toBeNull();
+ expect(screen.queryByText('Likely inbound')).toBeNull();
+ expect(screen.getByText(/Historical route · FlyItalyADSB/)).toBeTruthy();
+});
