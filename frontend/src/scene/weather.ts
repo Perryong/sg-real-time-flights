@@ -1,8 +1,8 @@
 import {Cartesian3, Color, Credit, GeometryInstance, Material, Matrix4, PolylineGeometry, PolylineMaterialAppearance, Primitive, PrimitiveCollection, Rectangle, SingleTileImageryProvider, Transforms, type ImageryLayer, type Viewer} from 'cesium';
-import type {RadarFrame, WindStation} from '../data/weather';
+import type {RadarFrame, WindPoint, WindStation} from '../data/weather';
 
 // Meteorological bearings describe where wind comes FROM. The arrow and pulse
-// travel away from that bearing, over a fixed 900 m station glyph.
+// travel away from that bearing over the glyph's fixed geographic length.
 const windMaterial = `
 uniform vec4 color;
 uniform float phase;
@@ -22,27 +22,37 @@ function windColor(speed:number):Color {
 }
 
 export function addWindLayer(viewer:Viewer,stations:WindStation[],reducedMotion:boolean):()=>void {
+  return addWindGlyphs(viewer,stations,reducedMotion,900,90);
+}
+
+export function addRegionalWindLayer(viewer:Viewer,points:WindPoint[],reducedMotion:boolean):()=>void {
+  // Keep each sample anchored at its model coordinate, including at the edge
+  // of the sampling circle. The symbol may extend beyond that circle.
+  return addWindGlyphs(viewer,points,reducedMotion,20_000,2_000);
+}
+
+function addWindGlyphs(viewer:Viewer,points:WindPoint[],reducedMotion:boolean,arrowLength:number,calmRadius:number):()=>void {
   const collection = viewer.scene.primitives.add(new PrimitiveCollection());
   const animated:Array<{material:Material;speed:number}> = [];
-  for (const station of stations) {
-    const transform = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(station.lon,station.lat,25));
+  for (const point of points) {
+    const transform = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(point.lon,point.lat,25));
     const world = (east:number,north:number)=>Matrix4.multiplyByPoint(transform,new Cartesian3(east,north,0),new Cartesian3());
-    const color = windColor(station.speed_mps);
+    const color = windColor(point.speed_mps);
     let positions:Cartesian3[];
     let material:Material;
-    if (station.speed_mps === 0) {
-      // A calm observation has no meaningful direction.
-      positions = Array.from({length:24},(_,i)=>world(Math.sin(i*Math.PI/12)*90,Math.cos(i*Math.PI/12)*90));
+    if (point.speed_mps === 0) {
+      // A calm wind has no meaningful direction.
+      positions = Array.from({length:24},(_,i)=>world(Math.sin(i*Math.PI/12)*calmRadius,Math.cos(i*Math.PI/12)*calmRadius));
       positions.push(Cartesian3.clone(positions[0]));
       material = Material.fromType('Color',{color});
     } else {
-      const toward = (station.from_deg+180)*Math.PI/180;
-      positions = [world(0,0),world(Math.sin(toward)*900,Math.cos(toward)*900)];
+      const toward = (point.from_deg+180)*Math.PI/180;
+      positions = [world(0,0),world(Math.sin(toward)*arrowLength,Math.cos(toward)*arrowLength)];
       material = new Material({fabric:{type:'StationWind',uniforms:{color,phase:reducedMotion?-1:0},source:windMaterial},translucent:true});
-      if (!reducedMotion) animated.push({material,speed:station.speed_mps});
+      if (!reducedMotion) animated.push({material,speed:point.speed_mps});
     }
     collection.add(new Primitive({
-      geometryInstances:new GeometryInstance({geometry:new PolylineGeometry({positions,width:station.speed_mps===0?2:12,vertexFormat:PolylineMaterialAppearance.VERTEX_FORMAT})}),
+      geometryInstances:new GeometryInstance({geometry:new PolylineGeometry({positions,width:point.speed_mps===0?2:12,vertexFormat:PolylineMaterialAppearance.VERTEX_FORMAT})}),
       appearance:new PolylineMaterialAppearance({material}),
       allowPicking:false,
       asynchronous:false,

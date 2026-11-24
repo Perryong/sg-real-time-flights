@@ -154,7 +154,9 @@ export default function SourceDetails({
         </div>
         <div className="source-card">
           <h3>Singapore weather</h3>
-          <p>Surface wind observations and 70 km rain radar are provided by Meteorological Service Singapore / NEA through data.gov.sg. Wind arrows point downwind at reporting stations. They do not describe wind at aircraft altitude. Radar is placed using the provider's geographic bounds. Old or expired observations are hidden; missing readings do not mean calm or dry weather. Shared caching and request limits may pause updates.</p>
+          <p>Regional surface winds within 500 km use Open-Meteo weather-model estimates at 10 m height. Arrows point downwind at model samples; they are not measured station readings or aircraft-altitude winds. The displayed wind time is the model valid time. Rain uses the 480 km Meteorological Service Singapore / NEA radar through data.gov.sg, placed approximately using the provider's geographic bounds. Radar coverage does not extend to the full 500 km aircraft radius. Old or expired observations are hidden; missing readings do not mean calm or dry weather. Shared caching and request limits may pause updates.</p>
+          <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Regional wind: Open-Meteo</a>
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">Wind data: CC BY 4.0</a>
           <a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noreferrer">Singapore Open Data Licence</a>
           <a href="https://data.gov.sg/datasets/d_418e9ac3414fd927b7405631e0a7bc82/view" target="_blank" rel="noreferrer">MSS rain radar</a>
         </div>

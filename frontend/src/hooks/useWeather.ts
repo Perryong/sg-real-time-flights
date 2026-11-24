@@ -11,7 +11,12 @@ export function useWeatherLayer(layer:WeatherLayer,enabled:boolean){
   return startWeatherPolling(weatherUrl,layer,gate.current,next=>{
    if(next.phase==='ready')lastGood.current=next;
    const cached=lastGood.current;
-   setState(next.phase==='loading'&&cached?.phase==='ready'&&weatherCurrent(cached.data,Date.now()/1000)?cached:next);
+   setState(previous=>{
+    if(next.phase!=='loading')return next;
+    if(gate.current.notBefore>Date.now()&&previous.phase==='error')return previous;
+    if(cached?.phase==='ready'&&weatherCurrent(cached.data,Date.now()/1000))return cached;
+    return gate.current.notBefore>Date.now()?{phase:'paused',message:'Waiting for the next scheduled weather check.'}:next;
+   });
   });
  },[layer,enabled]);
  return enabled?state:{phase:'off' as const,message:''};

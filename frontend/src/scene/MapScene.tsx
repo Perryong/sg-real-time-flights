@@ -44,10 +44,10 @@ export type CameraAction = {
   id?: string;
   nonce: number;
 };
-import {addWindLayer,addRadarLayer} from './weather';
-import type {WindStation,RadarFrame} from '../data/weather';
+import {addRegionalWindLayer,addRadarLayer} from './weather';
+import type {WindPoint,RadarFrame} from '../data/weather';
 interface Props {
-  windStations:WindStation[]|null;
+  windPoints:WindPoint[]|null;
   radarFrame:RadarFrame|null;
   radarOpacity:number;
   onRadarError:()=>void;
@@ -92,9 +92,9 @@ export default function MapScene(props: Props) {
   },[]);
   useEffect(()=>{
     const viewer=viewerRef.current;
-    if(!ready||!viewer||viewer.isDestroyed()||!props.windStations)return;
-    return addWindLayer(viewer,props.windStations,reducedMotion);
-  },[ready,props.windStations,reducedMotion]);
+    if(!ready||!viewer||viewer.isDestroyed()||!props.windPoints)return;
+    return addRegionalWindLayer(viewer,props.windPoints,reducedMotion);
+  },[ready,props.windPoints,reducedMotion]);
   useEffect(()=>{
     const viewer=viewerRef.current;
     if(!ready||!viewer||viewer.isDestroyed()||!props.radarFrame)return;
