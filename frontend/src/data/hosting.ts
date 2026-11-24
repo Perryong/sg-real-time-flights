@@ -24,3 +24,5 @@ export function socketUrl(origin: string): string | null {
 
 export const httpFeedUrl = liveAvailable && import.meta.env.VITE_LIVE_TRANSPORT === "http"
   ? `${backend}/api/aircraft` : null;
+
+export const postalSearchUrl = `${backend}/api/location/postal`;

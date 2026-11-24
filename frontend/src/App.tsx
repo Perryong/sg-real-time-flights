@@ -3,6 +3,7 @@ import { airportUrl, assetUrl, liveAvailable } from "./data/hosting";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   Radar,
+  MapPin,
   Map,
   Plane,
   Layers3,
@@ -28,6 +29,8 @@ import {
 } from "lucide-react";
 import type { CameraAction } from "./scene/MapScene";
 const MapScene = lazy(() => import("./scene/MapScene"));
+import ObserverPanel, {type SkyAim} from "./components/ObserverPanel";
+import {isSingaporePin,relativeAircraft,type ObserverPin} from "./data/observer";
 import TrafficList from "./components/TrafficList";
 import ProviderCredits from "./components/ProviderCredits";
 import AircraftDetails, { formatTime } from "./components/AircraftDetails";
@@ -44,7 +47,7 @@ export default function App() {
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("all"),
     [night, setNight] = useState(true),
-    [view, setView] = useState<"overhead" | "3d">("overhead"),
+    [view, setView] = useState<"overhead" | "3d" | "sky">("overhead"),
     [trails, setTrails] = useState(true),
     [geometry, setGeometry] = useState(true),
     [layers, setLayers] = useState(false),
@@ -57,6 +60,13 @@ export default function App() {
       kind: "overview",
       nonce: 0,
     });
+  const [observer,setObserver]=useState<ObserverPin|null>(null);
+  const [observerOpen,setObserverOpen]=useState(false),[placing,setPlacing]=useState(false);
+  const [skyAim,setSkyAim]=useState<SkyAim>({heading:0,pitch:15});
+  const placePin=(pin:ObserverPin)=>{
+    if(!isSingaporePin(pin)){setMapError('Choose a point within the Singapore map area.');return}
+    setObserver(pin);setPlacing(false);setObserverOpen(true);setSidebar(true);setFollow(false);setMapError(null);
+  };
   const previousSelection = useRef<Track | null>(null);
   useEffect(() => {
     const c = new AbortController();
@@ -91,6 +101,7 @@ export default function App() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        setPlacing(false);
         setFollow(false);
         setSources(false);
         setLayers(false);
@@ -110,6 +121,7 @@ export default function App() {
   const choose = (id: string) => {
     setSelected(id);
     setFollow(false);
+    if(view==='sky')setView('overhead');
   };
   const switchMode = (mode: Mode) => {
     setSelected(null);
@@ -119,7 +131,7 @@ export default function App() {
   };
   const camera = (kind: CameraAction["kind"], id?: string) => {
     setFollow(false);
-    if (kind === "overview") setView("overhead");
+    if (kind === "overview" || kind === "place" || kind === "pin") setView("overhead");
     if (kind === "runway") setView("3d");
     setAction({ kind, id, nonce: Date.now() });
   };
@@ -180,6 +192,10 @@ export default function App() {
       <main className="workspace">
         <Suspense fallback={null}>
           <MapScene
+            observer={observer}
+            placing={placing}
+            skyAim={skyAim}
+            onPin={placePin}
             airport={airport}
             tracks={tracks}
             selected={selected}
@@ -203,9 +219,9 @@ export default function App() {
         <div className="map-shade" />
         <nav className="rail" aria-label="Primary navigation">
           <button
-            className={`rail-button ${sidebar ? "active" : ""}`}
+            className={`rail-button ${sidebar && !observerOpen ? "active" : ""}`}
             aria-label="Toggle aircraft list"
-            onClick={() => setSidebar(!sidebar)}
+            onClick={() => {setObserverOpen(false);setSidebar(observerOpen?true:!sidebar)}}
           >
             <Plane size={21} />
             <span>Traffic</span>
@@ -229,6 +245,7 @@ export default function App() {
             <Layers3 size={20} />
             <span>Layers</span>
           </button>
+          <button className={`rail-button ${observerOpen?'active':''}`} aria-label="My location" onClick={()=>{setSelected(null);setFollow(false);setObserverOpen(true);setSidebar(true)}}><MapPin size={20}/><span>My spot</span></button>
           <div className="rail-bottom">
             <button
               className="rail-button"
@@ -242,7 +259,12 @@ export default function App() {
           </div>
         </nav>
         <div className="left-panel-wrap">
-          {sidebar && (
+          {sidebar && observerOpen && <ObserverPanel pin={observer} placing={placing} sky={view==='sky'} aim={skyAim} tracks={tracks} now={feed.now} mode={feed.mode} mapReady={mapReady}
+            onPin={placePin} onPlace={()=>{setPlacing(true);setSidebar(false);camera('place')}} onCancel={()=>setPlacing(false)}
+            onRemove={()=>{setObserver(null);setPlacing(false);if(view==='sky')setView('overhead')}} onCenter={()=>camera('pin')}
+            onSky={()=>{setFollow(false);setView(view==='sky'?'overhead':'sky')}} onAim={setSkyAim}
+            onLook={track=>{if(!observer)return;const target=relativeAircraft(observer,track.latest);if(target.elevation===null)return;choose(track.id);setSkyAim({heading:target.bearing,pitch:target.elevation});setView('sky')}}/>}
+          {sidebar && !observerOpen && (
             <TrafficList
               movements={upstream?.movements}
               onDemand={upstream?.collection_mode === "on_demand"}
@@ -307,7 +329,9 @@ export default function App() {
             <span>Synthetic scenario · no real flights</span>
           </div>
         )}
-        <div className="map-controls">
+        {placing&&<div className="pin-placement-banner" role="status">Tap the map to place your pin <button onClick={()=>{setPlacing(false);setSidebar(true)}}>Cancel</button></div>}
+        {view==='sky'&&<div className="pin-placement-banner"><span>SKY VIEW FROM PIN</span><button onClick={()=>setView('overhead')}>Exit sky view</button></div>}
+        {view!=='sky'&&<div className="map-controls">
           <div className="control-group">
             <button
               className="icon-button"
@@ -362,7 +386,7 @@ export default function App() {
             <Box size={16} />
             {view === "3d" ? "2D" : "3D"}
           </button>
-        </div>
+        </div>}
         {layers && (
           <section
             className="layers-popover panel"
@@ -411,7 +435,7 @@ export default function App() {
             <p>Physical geometry only. Operational availability unknown.</p>
           </section>
         )}
-        {chosen && (
+        {chosen && view!=='sky' && (
           <AircraftDetails
             track={chosen}
             now={feed.now}
@@ -464,10 +488,10 @@ export default function App() {
               </span>
             </div>
             <span className="stat-divider" />
-            <div>
+            {view!=='sky'&&<div>
               <strong>{Math.min(inView, tracks.length)}</strong>
               <span>IN VIEW</span>
-            </div>
+            </div>}
             <span className="stat-icon">
               <Radar size={23} />
             </span>
@@ -475,7 +499,7 @@ export default function App() {
           <div className="presentation-label">
             {follow
               ? "FOLLOW CAMERA"
-              : view === "3d"
+              : view === "sky" ? "OBSERVER SKY VIEW" : view === "3d"
                 ? "3D GEOGRAPHIC VIEW"
                 : "NORTH-UP GEOGRAPHIC VIEW"}
             <span>
@@ -539,7 +563,7 @@ export default function App() {
           </span>
         </div>
         <div>
-          <span>Buffer 10s</span>
+          <span>{view==='sky'?'Latest observed positions':'Buffer 10s'}</span>
           <span className="footer-divider" />
           <button onClick={() => setSources(true)}>Sources & accuracy</button>
           <span className="footer-divider" />

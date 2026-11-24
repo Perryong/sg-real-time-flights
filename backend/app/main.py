@@ -7,6 +7,7 @@ import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
+from .geocoding import router as geocoding_router
 from .config import Settings, ROOT
 from .provider import AdsbFiProvider, FlyItalyProvider
 from .opensky import OpenSkyGroundProvider
@@ -42,7 +43,8 @@ def create_app(settings=None, provider=None, clock=time.time):
                 if hasattr(collector,'close'):await collector.close()
     app=FastAPI(title='Changi Observatory',lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
-    app.add_middleware(CORSMiddleware,allow_origins=list(settings.origins),allow_methods=['GET'],allow_headers=['*'])
+    app.add_middleware(CORSMiddleware,allow_origins=list(settings.origins),allow_methods=['GET','POST'],allow_headers=['*'])
+    app.include_router(geocoding_router)
     @app.get('/api/health')
     def health(): return {'ok':True,'schema_version':1,'version':'0.1.0'}
     @app.get('/api/status')
