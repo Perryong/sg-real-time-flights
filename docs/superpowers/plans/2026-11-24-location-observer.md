@@ -24,8 +24,8 @@ Free services; keep current flight feed, limits, daily counts and Cesium. Pin is
 
 ### Task 2: Postal lookup and verification
 - [x] Add failing backend OneMap exact-postal/auth/error/rate-limit tests; implement backend/app/geocoding.py and route on both cloud/local apps.
-- [ ] Configure authorized OneMap credentials if user has completed account setup; otherwise make setup blocker explicit while retaining completed pin flow.
-- [ ] Run backend/frontend suites and builds/browser checks. Independent review, address findings with regressions. Deploy and merge through established workflow when all required access is available.
+- [x] Configure authorized OneMap credentials after account setup; user selected a production access token with manual renewal.
+- [x] Run backend/frontend suites and builds/browser checks. Independent review, address findings with regressions. Deploy and merge through established workflow.
 
 
 ## Verification record · 24 November 2026
@@ -38,3 +38,14 @@ Free services; keep current flight feed, limits, daily counts and Cesium. Pin is
 - Also showed requested altitude and removed the map-only IN VIEW count from sky, where it would be misleading. No deferred code findings.
 - Ruling: continue with a local preview and commit while OneMap access is pending. This preserves the working drop-pin and sky flow without pretending live postal lookup works. Cost: postal searches remain unavailable until credentials are configured and tested; public deployment is still pending.
 - Final reviewer declined live OneMap verification because no account credentials exist; this remains an explicit external dependency, not a passing check.
+
+
+## Published release · 24 November 2026
+
+- User completed OneMap registration and authorized a production access token. Stored only as a Vercel Secret, never in source or frontend assets. User explicitly chose manual token renewal; current expiry is 27 November 2026, 11:29 AM SGT.
+- Added token-only configuration with regression tests for safe failure/backoff, token rotation and route configuration. Automatic email/password renewal remains supported but is not configured. Focused independent release review found no important or critical issues.
+- Final backend suite: 165 passed; frontend suite: 63 passed. Pages CI passed.
+- PR #4 merged at ce7336754f439c8f19f148a980c23f5d7a68ef60. GitHub Pages run 45320360597 succeeded.
+- Vercel deployment dpl_Fb9jg8a8hjaT9ZifqrWqaQjkzAsx is live at the existing production alias.
+- Production POST postal lookup returned HTTP 200, exact OneMap address/coordinates, no-store and the expected Pages CORS origin. Verified the user-requested postal code in the published UI, centered the resulting pin, saw nearby real aircraft distance/direction/altitude, and entered sky view from that location. No user location was saved in repository artifacts.
+- The earlier account/deployment blocker is resolved; the only ongoing setup requirement is manual token renewal as chosen by the user.
