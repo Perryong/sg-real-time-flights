@@ -16,12 +16,17 @@ class PostalQuery(BaseModel):
     postal:str=Field(pattern=r'^\d{6}$',strict=True)
 
 class OneMapGeocoder:
-    def __init__(self,client,cache,email,password,clock=time.time):
+    def __init__(self,client,cache,email,password,clock=time.time,access_token=""):
         self.client,self.cache,self.email,self.password,self.clock=client,cache,email,password,clock
-        self.key='changi:geocode:v1:'+hashlib.sha256(email.encode()).hexdigest()[:16]
+        self.access_token=access_token
+        identity='account:'+email if email and password else 'token:'+access_token
+        self.key='changi:geocode:v1:'+hashlib.sha256(identity.encode()).hexdigest()[:16]
 
     async def token(self):
         if await self.cache.command('GET',self.key+':backoff'):raise LookupUnavailable()
+        if not (self.email and self.password):
+            if not self.access_token:raise LookupUnavailable()
+            return self.access_token
         token=await self.cache.command('GET',self.key+':token')
         if token:return token
         if not await self.cache.command('SET',self.key+':auth-lock','1','NX','EX',20):raise LookupUnavailable()
@@ -85,7 +90,8 @@ router=APIRouter()
 async def postal_lookup(query:PostalQuery,request:Request):
     headers={'Cache-Control':'no-store','Retry-After':'60'}
     email,password=os.getenv('ONEMAP_EMAIL',''),os.getenv('ONEMAP_PASSWORD','')
-    if not email or not password:
+    access_token=os.getenv('ONEMAP_ACCESS_TOKEN','').strip()
+    if not access_token and not (email and password):
         return JSONResponse({'detail':'Postal search is not configured. Use Drop pin.'},status_code=503,headers=headers)
     secret=os.getenv('KV_REST_API_TOKEN',os.getenv('UPSTASH_REDIS_REST_TOKEN',''))
     viewer=request.headers.get('x-vercel-forwarded-for','unknown') if os.getenv('VERCEL') else request.client.host if request.client else 'unknown'
@@ -95,7 +101,7 @@ async def postal_lookup(query:PostalQuery,request:Request):
         try:
             if not await cache.command('EVAL',LIMIT,1,'changi:geocode:limits',digest):
                 return JSONResponse({'detail':'Search limit reached. Try again in a minute.'},status_code=429,headers=headers)
-            results=await OneMapGeocoder(client,cache,email,password).search(query.postal)
+            results=await OneMapGeocoder(client,cache,email,password,access_token=access_token).search(query.postal)
             return JSONResponse({'results':results,'attribution':'OneMap · Singapore Land Authority'},headers={'Cache-Control':'no-store'})
         except (CacheUnavailable,LookupUnavailable):
             return JSONResponse({'detail':'Postal search is temporarily unavailable. Use Drop pin.'},status_code=503,headers=headers)

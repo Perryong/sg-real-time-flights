@@ -42,6 +42,7 @@ def test_postal_route_validation_and_missing_configuration(monkeypatch):
     from fastapi.testclient import TestClient
     from backend.app.cloud import create_cloud_app
     monkeypatch.delenv('ONEMAP_EMAIL',raising=False);monkeypatch.delenv('ONEMAP_PASSWORD',raising=False)
+    monkeypatch.delenv('ONEMAP_ACCESS_TOKEN',raising=False)
     with TestClient(create_cloud_app()) as client:
         for postal in ('12345','1234567','abcdef',18956):
             assert client.post('/api/location/postal',json={'postal':postal}).status_code==422
@@ -96,3 +97,46 @@ async def test_onemap_http_200_auth_error_is_not_reported_as_no_matching_address
         for _ in range(2):
             with pytest.raises(LookupUnavailable):await service.search('018956')
         assert calls==['POST','GET']
+
+@pytest.mark.asyncio
+async def test_supplied_token_search_needs_no_account_password_and_backs_off_on_denial():
+    calls=[]
+    async def transport(request):
+        calls.append(request.method)
+        assert request.headers['authorization']=='provided-token'
+        return httpx.Response(401)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+        service=OneMapGeocoder(client,Cache(),'','',access_token='provided-token')
+        for _ in range(2):
+            with pytest.raises(LookupUnavailable):await service.search('018956')
+        assert calls==['GET']
+
+@pytest.mark.asyncio
+async def test_supplied_token_uses_exact_postal_results_and_rotation_has_fresh_backoff_namespace():
+    async def transport(request):
+        assert request.method=='GET'
+        assert request.headers['authorization']=='new-token'
+        return httpx.Response(200,json={'results':[{'POSTAL':'018956','LATITUDE':'1.28','LONGITUDE':'103.85','ADDRESS':'Example'}]})
+    cache=Cache()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+        old=OneMapGeocoder(client,cache,'','',access_token='old-token')
+        cache.values[old.key+':backoff']='1'
+        service=OneMapGeocoder(client,cache,'','',access_token='new-token')
+        assert (await service.search('018956'))[0]['postal']=='018956'
+
+def test_postal_route_accepts_token_only_configuration(monkeypatch):
+    from fastapi.testclient import TestClient
+    from backend.app.cloud import create_cloud_app
+    import backend.app.geocoding as geo
+    monkeypatch.delenv('ONEMAP_EMAIL',raising=False);monkeypatch.delenv('ONEMAP_PASSWORD',raising=False)
+    monkeypatch.setenv('ONEMAP_ACCESS_TOKEN','provided-token')
+    async def command(self,*args):return 1
+    async def search(self,postal):
+        assert self.access_token=='provided-token'
+        return [{'lat':1.28,'lon':103.85,'label':'Example','postal':postal}]
+    monkeypatch.setattr(geo.RedisCache,'command',command);monkeypatch.setattr(geo.OneMapGeocoder,'search',search)
+    with TestClient(create_cloud_app()) as client:
+        response=client.post('/api/location/postal',json={'postal':'018956'})
+        assert response.status_code==200
+        assert response.headers['cache-control']=='no-store'
+        assert 'provided-token' not in response.text
