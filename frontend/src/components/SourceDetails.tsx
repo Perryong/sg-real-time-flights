@@ -153,6 +153,12 @@ export default function SourceDetails({
           <a href="https://opensky-network.org/" target="_blank" rel="noreferrer">OpenSky Network <ExternalLink size={12} /></a>
         </div>
         <div className="source-card">
+          <h3>Singapore weather</h3>
+          <p>Surface wind observations and 70 km rain radar are provided by Meteorological Service Singapore / NEA through data.gov.sg. Wind arrows point downwind at reporting stations. They do not describe wind at aircraft altitude. Radar is placed using the provider's geographic bounds. Old or expired observations are hidden; missing readings do not mean calm or dry weather. Shared caching and request limits may pause updates.</p>
+          <a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noreferrer">Singapore Open Data Licence</a>
+          <a href="https://data.gov.sg/datasets/d_418e9ac3414fd927b7405631e0a7bc82/view" target="_blank" rel="noreferrer">MSS rain radar</a>
+        </div>
+        <div className="source-card">
           <h3>Airport & map geometry</h3>
           <p>A350 and 777 visuals adapt Widebody Airliner by Polyfork (CC BY 4.0), with approximate proportions and stowed gear. The decorative sky is Kloofendal 48d Partly Cloudy by Greg Zaal and Jarod Guest, Poly Haven (CC0), sourced through 3DStreet. It does not represent live weather.</p>
           <a href="https://polyfork.dev/asset/widebody-airliner-ae0a5a" target="_blank" rel="noreferrer">Widebody Airliner · Polyfork</a>

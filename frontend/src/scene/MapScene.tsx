@@ -44,7 +44,13 @@ export type CameraAction = {
   id?: string;
   nonce: number;
 };
+import {addWindLayer,addRadarLayer} from './weather';
+import type {WindStation,RadarFrame} from '../data/weather';
 interface Props {
+  windStations:WindStation[]|null;
+  radarFrame:RadarFrame|null;
+  radarOpacity:number;
+  onRadarError:()=>void;
   region:Region;
   followCamera:FollowCamera;
   followStyle:FollowStyle;
@@ -77,6 +83,23 @@ export default function MapScene(props: Props) {
     latest = useRef(props),
     [ready, setReady] = useState(false);
   latest.current = props;
+  const [reducedMotion,setReducedMotion]=useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  useEffect(()=>{
+    const media=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const change=()=>setReducedMotion(media.matches);
+    media.addEventListener('change',change);
+    return ()=>media.removeEventListener('change',change);
+  },[]);
+  useEffect(()=>{
+    const viewer=viewerRef.current;
+    if(!ready||!viewer||viewer.isDestroyed()||!props.windStations)return;
+    return addWindLayer(viewer,props.windStations,reducedMotion);
+  },[ready,props.windStations,reducedMotion]);
+  useEffect(()=>{
+    const viewer=viewerRef.current;
+    if(!ready||!viewer||viewer.isDestroyed()||!props.radarFrame)return;
+    return addRadarLayer(viewer,props.radarFrame,props.radarOpacity,props.onRadarError);
+  },[ready,props.radarFrame,props.radarOpacity,props.onRadarError]);
   useEffect(() => {
     if (!container.current) return;
     const modelAbort = new AbortController();

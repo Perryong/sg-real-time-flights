@@ -1736,3 +1736,20 @@ input {
 .follow-route.route-unknown {padding:8px 20px;justify-content:center}
 .follow-route.route-unknown>strong {display:none}
 .follow-route.route-unknown>span svg {display:none}
+
+.weather-controls{position:absolute;right:84px;top:62px;z-index:6;width:226px;border-radius:8px;background:#101e28f2;overflow:hidden}
+.weather-buttons{display:flex;padding:4px;gap:4px}
+.weather-buttons button{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-height:38px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:12px;cursor:pointer}
+.weather-buttons button[aria-pressed=true]{color:#c6f29a;background:#293c2b;border-color:#60764b}
+.weather-buttons button:disabled{opacity:.5;cursor:default}
+.weather-details{padding:0 10px 10px;max-height:280px;overflow:auto}
+.weather-details summary{font-size:10px;color:var(--muted);cursor:pointer;padding:5px 0}
+.weather-legend{border-top:1px solid #34434a;padding:9px 0 6px;font-size:11px}
+.weather-legend strong{font-weight:600}.weather-legend p,.weather-note{font-size:10px;line-height:1.5;color:#bccbd3;margin:5px 0}.weather-note{padding:0 10px 6px}
+.weather-legend small{font-size:9px;color:var(--muted)}
+.wind-scale,.rain-labels{display:flex;justify-content:space-between;font-size:10px;margin:7px 0}
+.wind-scale span:nth-child(1){color:#74d8d2}.wind-scale span:nth-child(2){color:#f3d37a}.wind-scale span:nth-child(3){color:#f49b79}
+.rain-scale{height:6px;border-radius:3px;margin-top:8px;background:linear-gradient(90deg,#00837d,#00babf,#00ffff,#008045,#00ca11,#00ff00,#ffff00,#ffc600,#ff8a00,#ff1f00,#c10000)}
+.weather-opacity{display:flex;gap:8px;align-items:center;font-size:10px;flex-wrap:wrap}.weather-opacity output{margin-left:auto}.weather-opacity input{width:100%;accent-color:#bbec87}
+.weather-credit{font-size:9px;color:#9eafb9}.app.following .weather-controls{top:14px;right:24px}
+@media(max-width:799px){.weather-controls{top:51px;right:12px;width:175px}.weather-buttons button{font-size:11px;gap:4px;min-height:36px}.weather-details{max-height:200px}.weather-controls:has(details[open]){right:54px;top:100px}.app.following .weather-controls{top:12px;right:12px}.app.following .weather-details{max-height:180px}}

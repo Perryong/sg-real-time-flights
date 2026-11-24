@@ -1,6 +1,6 @@
 import { COVERAGE_RADIUS_KM } from "./data/coverage";
 import { airportUrl, assetUrl, liveAvailable, httpFeedUrl } from "./data/hosting";
-import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   Radar,
   MapPin,
@@ -42,9 +42,22 @@ import { useTraffic } from "./hooks/useTraffic";
 import { freshness, effectiveUpstreamState } from "./data/freshness";
 import type { Airport, Mode, Track } from "./data/types";
 
+import WeatherControls from './components/WeatherControls';
+import {useWeatherLayer,useWeatherPreferences} from './hooks/useWeather';
+import {weatherCurrent} from './data/weather';
+
 export default function App() {
   const [region,setRegion]=useState<RegionId>("singapore");
   const feed = useTraffic(region);
+  const [weather,setWeather]=useWeatherPreferences();
+  const weatherUnavailable=feed.mode!=='live'?'Weather is available in Live mode.':region!=='singapore'?'Weather covers Singapore only.':!liveAvailable?'Connect a live backend for weather.':null;
+  const wind=useWeatherLayer('wind',weather.wind&&!weatherUnavailable);
+  const radar=useWeatherLayer('radar',weather.radar&&!weatherUnavailable);
+  const weatherNow=Date.now()/1000;
+  const windStations=wind.phase==='ready'&&wind.data.layer==='wind'&&weatherCurrent(wind.data,weatherNow)?wind.data.stations:null;
+  const radarFrame=radar.phase==='ready'&&radar.data.layer==='radar'&&weatherCurrent(radar.data,weatherNow)?radar.data.radar:null;
+  const [failedRadar,setFailedRadar]=useState<string|null>(null);
+  const onRadarError=useCallback(()=>setFailedRadar(radarFrame?.url??null),[radarFrame?.url]);
   const activeRegion=regions[feed.mode==='live'?region:'singapore'];
   const [followCamera,setFollowCamera]=useState({...defaultFollowCamera});
   const [followStyle,setFollowStyle]=useState<FollowStyle>("satellite");
@@ -199,6 +212,10 @@ export default function App() {
       <main className="workspace">
         <Suspense fallback={null}>
           <MapScene
+            windStations={windStations}
+            radarFrame={radarFrame?.url===failedRadar?null:radarFrame}
+            radarOpacity={weather.opacity}
+            onRadarError={onRadarError}
             region={activeRegion}
             followCamera={followCamera}
             followStyle={followStyle}
@@ -228,6 +245,7 @@ export default function App() {
           />
         </Suspense>
         <div className="map-shade" />
+        <WeatherControls preferences={weather} onChange={setWeather} wind={wind} radar={radar} unavailable={weatherUnavailable} now={weatherNow} radarError={!!radarFrame&&failedRadar===radarFrame.url}/>
         {!follow&&<select className="mobile-region-picker" aria-label="Map region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl} onChange={e=>{setSelected(null);setFollow(false);setObserverOpen(false);setPlacing(false);setView('overhead');setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name}</option>)}</select>}
         <nav className="rail" aria-label="Primary navigation">
           <button
