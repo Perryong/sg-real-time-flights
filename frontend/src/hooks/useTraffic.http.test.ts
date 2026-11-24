@@ -34,3 +34,17 @@ it.each([-120,120])('corrects device clock skew of %s seconds without changing p
   expect(result.current.getNow()).toBe(1700000000);
   expect(result.current.snapshot?.tracks[0].latest.position_time).toBe(1700000000);
 });
+it('clears the old region and ignores a late response after switching',async()=>{
+ let completeOld!:(r:Response)=>void;
+ const fetcher=vi.fn().mockImplementationOnce(()=>new Promise<Response>(resolve=>{completeOld=resolve}))
+  .mockImplementation(async()=>new Response(JSON.stringify(frame(1,'london'))));
+ vi.stubGlobal('fetch',fetcher);
+ const {result,rerender}=renderHook(({region})=>useTraffic(region),{initialProps:{region:'singapore' as 'singapore'|'london'}});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(0)});
+ rerender({region:'london'});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(0)});
+ expect(fetcher.mock.calls[1][0]).toBe('https://cloud.example/api/aircraft?region=london');
+ expect(result.current.snapshot?.epoch).toBe('london');
+ await act(async()=>{completeOld(new Response(JSON.stringify(frame(99,'singapore'))));await vi.advanceTimersByTimeAsync(0)});
+ expect(result.current.snapshot?.epoch).toBe('london');
+});

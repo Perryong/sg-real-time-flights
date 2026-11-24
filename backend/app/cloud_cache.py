@@ -12,11 +12,12 @@ import httpx
 # upstream request, so even a crashed refresh cannot immediately duplicate polling.
 CLAIM = """
 local minute = math.floor(tonumber(redis.call('TIME')[1]) / 60)
-local ip = KEYS[1] .. ':viewer:' .. ARGV[1] .. ':' .. minute
+local budget = KEYS[2] or KEYS[1]
+local ip = budget .. ':viewer:' .. ARGV[1] .. ':' .. minute
 local m = redis.call('INCR', ip)
 if m == 1 then redis.call('EXPIRE', ip, 120) end
 if m > 8 then return {'limited'} end
-local global = KEYS[1] .. ':global:' .. minute
+local global = budget .. ':global:' .. minute
 local n = redis.call('INCR', global)
 if n == 1 then redis.call('EXPIRE', global, 120) end
 if n > 60 then return {'limited'} end
@@ -50,8 +51,9 @@ class Claim:
     token: str | None
 
 class RedisCache:
-    def __init__(self, client, url, secret, prefix='changi:cloud:v1'):
+    def __init__(self, client, url, secret, prefix='changi:cloud:v1', rate_prefix=None):
         self.client, self.url, self.secret, self.prefix = client, url, secret, prefix
+        self.rate_prefix = rate_prefix or prefix
 
     async def command(self, *args):
         if not self.url.startswith('https://') or not self.secret:
@@ -70,7 +72,7 @@ class RedisCache:
     async def claim(self, viewer):
         digest = hashlib.sha256((self.secret+viewer).encode()).hexdigest()[:24]
         token = uuid.uuid4().hex
-        result = await self.command('EVAL', CLAIM, 1, self.prefix, digest, token)
+        result = await self.command('EVAL', CLAIM, 2, self.prefix, self.rate_prefix, digest, token)
         if not isinstance(result,list) or not result: raise CacheUnavailable()
         if result[0] == 'limited': raise CacheLimited()
         if result[0] not in ('cached','refresh') or len(result)!=2: raise CacheUnavailable()

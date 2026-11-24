@@ -1,0 +1,13 @@
+# Immersive aircraft follow
+
+Implements approved Issue #5 and the user's instruction to proceed. Retain Cesium and the free Pages/Vercel setup. No phone-camera AR, GPS, compass or pin requirement.
+
+Selected fresh airborne aircraft with known altitude opens a dedicated trailing view. Default camera is 180 m behind, 18 degrees above; distance 80–1500 m, orbit ±180 degrees, elevation 5–60 degrees. Camera/model/telemetry share the existing 10-second buffered timeline. Heading uses shortest-angle interpolation; actual heading is preferred to course, otherwise fixed north is disclosed. Fresh reports only (0–20 seconds); stale motion freezes with a visible notice; lost aircraft exits follow. Exit restores the prior map camera. Explicit selection changes cannot retain the old target.
+
+Compact bottom card contains identity, registration/type when present, historical route when valid (clearly labeled), altitude/source, ground speed and heading/course, freshness/source and simulation labels. No invented liveries, schedules, ETA or progress bars. Observed trails only. Controls remain reachable on mobile without covering the plane. Geographic map and optional satellite backdrop; imagery credits remain visible and failed satellite tiles fall back to the map.
+
+Data expansion: three bounded regions, Singapore (existing sources/500 km), London and Tokyo (FlyItalyADSB only, 200 km). Free API officially permits regional queries up to 500 km, 30/min, 300k/month. Three regions at at most two FlyItaly polls/min each is at most 267,840 calls per 31 days; no background polling. Keep existing global 60/min and viewer 8/min budgets across all regions; caches/leases/history are region-specific. Unknown region/arbitrary queries rejected. Changi movement ledger persists only under unchanged Singapore cache namespace; foreign snapshots expose no Changi totals/inference. No worldwide coverage claim.
+
+Approach: extend current Cesium layer/controller rather than add Three.js or camera AR. Reuse frame geometry and provider normalization, add a small follow-state helper and bottom panel. Implement inline with one independent final review. Work in the existing clean checkout on a codex branch (established project workflow).
+
+Research: FlyItalyADSB https://flyitalyadsb.com/data/api/docs/limits-and-errors/ and https://flyitalyadsb.com/data/products/using-the-data/ . Cesium https://cesium.com/learn/cesiumjs/ref-doc/Viewer.html . EOX https://maps.eox.at/ allows app use with attribution; choose its older 2017 satellite layer (CC BY 4.0) if the documented endpoint and license verify. No paid imagery/terrain account; keep flat ellipsoid and disclose approximation.

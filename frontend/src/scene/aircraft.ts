@@ -1,5 +1,6 @@
 import {
   Cartesian3,
+  Resource,
   Color,
   CallbackProperty,
   CallbackPositionProperty,
@@ -16,7 +17,10 @@ import {
   PointPrimitiveCollection,
   PolylineDashMaterialProperty,
   PolylineGraphics,
+  PolylineGlowMaterialProperty,
 } from "cesium";
+import {followSample,type FollowSample} from "../data/follow";
+import {aircraftModel} from "../data/aircraftModels";
 import { displayPosition } from "../data/display";
 import { freshness } from "../data/freshness";
 import type { Track } from "../data/types";
@@ -33,12 +37,18 @@ export class AircraftLayer {
   selected: string | null = null;
   trails = true;
   models = true;
+  unavailableModels = new Set<string>();
+  private modelResources = new Map<string, Resource>();
+  private disposed = false;
   observerView = false;
+  followId: string | null = null;
+  followFrame: FollowSample | null = null;
   points: PointPrimitiveCollection;
   segment: Entity;
   constructor(
     private viewer: Viewer,
     private now: () => number,
+    private onModelError: (message:string) => void = () => {},
   ) {
     this.points = viewer.scene.primitives.add(new PointPrimitiveCollection());
     this.segment = viewer.entities.add({
@@ -50,7 +60,7 @@ export class AircraftLayer {
           const p = t.history
             .filter(
               (o) =>
-                o.position_time !== null && o.position_time <= this.now() - 10,
+                o.position_time !== null && o.position_time <= (this.followFrame?.renderTime ?? this.now() - 10),
             )
             .at(-1);
           return p
@@ -69,11 +79,16 @@ export class AircraftLayer {
           color: Color.fromCssColorString("#d9efb2"),
           dashLength: 8,
         }),
-        show: new CallbackProperty(() => this.trails && !!this.selected, false),
+        show: new CallbackProperty(() => this.trails && !!this.selected && !this.followId, false),
       },
     });
   }
   displayed(t: Track) {
+    if(t.id===this.followId){
+      const sample=followSample(t,this.now());
+      if(sample)this.followFrame=sample;
+      if(this.followFrame)return this.followFrame;
+    }
     if (!this.observerView) return displayPosition(t, this.now() - 10, this.now());
     const o = t.latest;
     return {lat:o.lat,lon:o.lon,ground:o.ground,
@@ -84,10 +99,12 @@ export class AircraftLayer {
     return Cartesian3.fromDegrees(
       p.lon,
       p.lat,
-      p.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
+      t.id===this.followId&&this.followFrame?this.followFrame.placementAltitude:p.ground === true ? 5 : Math.max(5, p.altitude ?? 0),
     );
   }
-  update(tracks: Track[], selected: string | null, trails: boolean, observerView = false) {
+  update(tracks: Track[], selected: string | null, trails: boolean, observerView = false, followId:string|null = null) {
+    if(this.followId!==followId)this.followFrame=null;
+    this.followId=followId;
     this.observerView = observerView;
     trails = trails && !observerView;
     this.selected = selected;
@@ -95,9 +112,9 @@ export class AircraftLayer {
     this.tracks = new Map(tracks.map((t) => [t.id, t]));
     this.points.removeAll();
     const chosen = selected ? this.tracks.get(selected) : null;
-    if (trails && chosen)
+    if (trails && chosen && !followId)
       for (const o of chosen.history) {
-        if (o.position_time !== null && o.position_time <= this.now() - 10)
+        if (o.position_time !== null && o.position_time <= (this.followFrame?.renderTime ?? this.now() - 10) && (this.followId!==chosen.id || Number.isFinite(o.alt_geom_m??o.alt_baro_m)))
           this.points.add({
             position: Cartesian3.fromDegrees(
               o.lon,
@@ -131,7 +148,7 @@ export class AircraftLayer {
               Transforms.headingPitchRollQuaternion(
                 this.position(current()),
                 new HeadingPitchRoll(
-                  CMath.toRadians((current().latest.track_deg ?? 0) - 90),
+                  CMath.toRadians((id===this.followId&&this.followFrame ? this.followFrame.heading??0 : current().latest.heading_deg??current().latest.track_deg??0) - 90),
                   0,
                   0,
                 ),
@@ -139,6 +156,7 @@ export class AircraftLayer {
             false,
           ),
           billboard: {
+            show:new CallbackProperty(()=>!this.followId||(id===this.followId&&!this.models),false),
             image: amber,
             width: 29,
             height: 29,
@@ -162,16 +180,20 @@ export class AircraftLayer {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           model: {
-            uri: `${import.meta.env.BASE_URL}models/generic-aircraft.glb`,
-            minimumPixelSize: 24,
+            uri: new CallbackProperty(()=>{
+              const file=aircraftModel(current().latest.aircraft_type).file;
+              return this.modelResource(this.unavailableModels.has(file)?'generic-aircraft.glb':file);
+            },false),
+            minimumPixelSize: new CallbackProperty(()=>id===this.followId?96:24,false),
             maximumScale: 100,
+            imageBasedLightingFactor:new Cartesian2(1,.6),
             scale: 1,
             show: new CallbackProperty(() => {
               const displayed = this.displayed(current());
               return (
                 this.models &&
                 (displayed.altitude !== null || displayed.ground === true) &&
-                this.viewer.camera.positionCartographic.height < 12000
+                (id===this.followId || this.viewer.camera.positionCartographic.height < 12000)
               );
             }, false),
             distanceDisplayCondition: new DistanceDisplayCondition(0, 15000),
@@ -186,8 +208,8 @@ export class AircraftLayer {
             pixelOffset: new Cartesian2(0, 24),
             show: new CallbackProperty(
               () =>
-                id === this.selected ||
-                this.viewer.camera.positionCartographic.height < 70000,
+                !this.followId && (id === this.selected ||
+                this.viewer.camera.positionCartographic.height < 70000),
               false,
             ),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -200,8 +222,8 @@ export class AircraftLayer {
           .filter(
             (o) =>
               o.position_time !== null &&
-              o.position_time <= this.now() - 10 &&
-              o.session_id === t.session_id,
+              o.position_time <= (this.followFrame?.renderTime ?? this.now() - 10) &&
+              o.session_id === t.session_id && (this.followId!==t.id || Number.isFinite(o.alt_geom_m??o.alt_baro_m)),
           )
           .map((o) =>
             Cartesian3.fromDegrees(
@@ -215,6 +237,10 @@ export class AircraftLayer {
             width: 2,
             material: Color.fromCssColorString("#9fce7a").withAlpha(0.65),
           });
+        e.polyline.material=this.followId===t.id
+          ?new PolylineGlowMaterialProperty({color:Color.fromCssColorString('#9969e8'),glowPower:.12})
+          :new PolylineGlowMaterialProperty({color:Color.fromCssColorString('#9fce7a').withAlpha(.65),glowPower:0});
+        e.polyline.width=new ConstantProperty(this.followId===t.id?3:2);
         e.polyline.positions = new ConstantProperty(positions);
       } else e.polyline = undefined;
       if (e.billboard)
@@ -223,7 +249,32 @@ export class AircraftLayer {
         );
     }
   }
+  modelUnavailable(file:string) {
+    if(this.disposed||this.unavailableModels.has(file))return;
+    this.unavailableModels.add(file);
+    if(file==='generic-aircraft.glb')this.models=false;
+    this.onModelError(file==='generic-aircraft.glb'
+      ?'Aircraft model unavailable; showing position markers.'
+      :'An aircraft-specific model is unavailable; using the generic model.');
+  }
+  private modelResource(file:string):Resource {
+    let resource=this.modelResources.get(file);
+    if(!resource){
+      resource=new Resource({
+        url:`${import.meta.env.BASE_URL}models/${file}`,
+        retryAttempts:1,
+        retryCallback:()=>{
+          // Notify on the actual Cesium request; the next frame selects the fallback URI.
+          this.modelUnavailable(file);
+          return false;
+        },
+      });
+      this.modelResources.set(file,resource);
+    }
+    return resource;
+  }
   clear() {
+    this.disposed=true;this.modelResources.clear();
     for (const e of this.entities.values()) this.viewer.entities.remove(e);
     this.entities.clear();
     this.tracks.clear();

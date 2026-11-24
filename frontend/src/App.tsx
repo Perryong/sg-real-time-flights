@@ -1,5 +1,5 @@
 import { COVERAGE_RADIUS_KM } from "./data/coverage";
-import { airportUrl, assetUrl, liveAvailable } from "./data/hosting";
+import { airportUrl, assetUrl, liveAvailable, httpFeedUrl } from "./data/hosting";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   Radar,
@@ -29,6 +29,9 @@ import {
 } from "lucide-react";
 import type { CameraAction } from "./scene/MapScene";
 const MapScene = lazy(() => import("./scene/MapScene"));
+import FollowPanel,{type FollowStyle} from "./components/FollowPanel";
+import {followSample,defaultFollowCamera} from "./data/follow";
+import {regions,type RegionId} from "./data/regions";
 import ObserverPanel, {type SkyAim} from "./components/ObserverPanel";
 import {isSingaporePin,relativeAircraft,type ObserverPin} from "./data/observer";
 import TrafficList from "./components/TrafficList";
@@ -40,7 +43,11 @@ import { freshness, effectiveUpstreamState } from "./data/freshness";
 import type { Airport, Mode, Track } from "./data/types";
 
 export default function App() {
-  const feed = useTraffic();
+  const [region,setRegion]=useState<RegionId>("singapore");
+  const feed = useTraffic(region);
+  const activeRegion=regions[feed.mode==='live'?region:'singapore'];
+  const [followCamera,setFollowCamera]=useState({...defaultFollowCamera});
+  const [followStyle,setFollowStyle]=useState<FollowStyle>("satellite");
   const [airport, setAirport] = useState<Airport | null>(null),
     [selected, setSelected] = useState<string | null>(null),
     [follow, setFollow] = useState(false),
@@ -127,12 +134,13 @@ export default function App() {
     setSelected(null);
     previousSelection.current = null;
     setFollow(false);
+    if(mode!=="live")setRegion("singapore");
     feed.setMode(mode);
   };
   const camera = (kind: CameraAction["kind"], id?: string) => {
     setFollow(false);
     if (kind === "overview" || kind === "place" || kind === "pin") setView("overhead");
-    if (kind === "runway") setView("3d");
+    if (kind === "runway") {setRegion("singapore");setSelected(null);setView("3d");}
     setAction({ kind, id, nonce: Date.now() });
   };
   const reported = feed.snapshot?.status;
@@ -145,7 +153,7 @@ export default function App() {
       : null;
   return (
     <div
-      className={`app ${night ? "night" : "day"} ${sidebar ? "sidebar-open" : "sidebar-closed"}`}
+      className={`app ${night ? "night" : "day"} ${sidebar ? "sidebar-open" : "sidebar-closed"} ${follow?"following":""}`}
     >
       <header className="topbar">
         <a className="brand" href={assetUrl("")} aria-label="Changi Observatory home">
@@ -160,8 +168,7 @@ export default function App() {
         <div className="header-divider" />
         <div className="workspace-title">
           <Globe2 size={16} />
-          <span>Singapore airspace</span>
-          <ChevronDown size={13} />
+          <label className="region-picker"><span className="sr-only">Airspace region</span><select aria-label="Airspace region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl||follow} onChange={e=>{setSelected(null);setFollow(false);setPlacing(false);setObserverOpen(false);setView("overhead");setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name} airspace</option>)}</select></label>
         </div>
         <div className="header-right">
           <span
@@ -192,6 +199,10 @@ export default function App() {
       <main className="workspace">
         <Suspense fallback={null}>
           <MapScene
+            region={activeRegion}
+            followCamera={followCamera}
+            followStyle={followStyle}
+            onSatelliteUnavailable={()=>setFollowStyle("day")}
             observer={observer}
             placing={placing}
             skyAim={skyAim}
@@ -217,6 +228,7 @@ export default function App() {
           />
         </Suspense>
         <div className="map-shade" />
+        {!follow&&<select className="mobile-region-picker" aria-label="Map region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl} onChange={e=>{setSelected(null);setFollow(false);setObserverOpen(false);setPlacing(false);setView('overhead');setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name}</option>)}</select>}
         <nav className="rail" aria-label="Primary navigation">
           <button
             className={`rail-button ${sidebar && !observerOpen ? "active" : ""}`}
@@ -245,7 +257,7 @@ export default function App() {
             <Layers3 size={20} />
             <span>Layers</span>
           </button>
-          <button className={`rail-button ${observerOpen?'active':''}`} aria-label="My location" onClick={()=>{setSelected(null);setFollow(false);setObserverOpen(true);setSidebar(true)}}><MapPin size={20}/><span>My spot</span></button>
+          <button className={`rail-button ${observerOpen?'active':''}`} aria-label="My location" onClick={()=>{setRegion("singapore");setSelected(null);setFollow(false);setObserverOpen(true);setSidebar(true)}}><MapPin size={20}/><span>My spot</span></button>
           <div className="rail-bottom">
             <button
               className="rail-button"
@@ -266,9 +278,9 @@ export default function App() {
             onLook={track=>{if(!observer)return;const target=relativeAircraft(observer,track.latest);if(target.elevation===null)return;choose(track.id);setSkyAim({heading:target.bearing,pitch:target.elevation});setView('sky')}}/>}
           {sidebar && !observerOpen && (
             <TrafficList
-              movements={upstream?.movements}
-              onDemand={upstream?.collection_mode === "on_demand"}
-              connected={feed.transport === "connected"}
+              radius={activeRegion.radius}
+              regionName={activeRegion.name}
+              isChangi={feed.mode!=='live'||region==='singapore'}
               sources={upstream?.sources}
               tracks={tracks}
               selected={selected}
@@ -298,10 +310,10 @@ export default function App() {
         <div className="map-topline">
           <div className="map-breadcrumb">
             <span className="tiny-dot" />
-            <span>SINGAPORE</span>
+            <span>{activeRegion.name==='Singapore'?'SINGAPORE':activeRegion.name==='London'?'UNITED KINGDOM':'JAPAN'}</span>
             <span className="slash">/</span>
-            <strong>CHANGI</strong>
-            <span className="region-badge">{COVERAGE_RADIUS_KM} km</span>
+            <strong>{activeRegion.name.toUpperCase()}</strong>
+            <span className="region-badge">{activeRegion.radius} km</span>
           </div>
           <div className="mode-switch" aria-label="Data mode">
             <button
@@ -435,19 +447,21 @@ export default function App() {
             <p>Physical geometry only. Operational availability unknown.</p>
           </section>
         )}
-        {chosen && view!=='sky' && (
+        {chosen && !follow && view!=='sky' && (
           <AircraftDetails
+            isChangi={activeRegion.name==='Singapore'}
             track={chosen}
             now={feed.now}
             follow={follow}
-            followAvailable={mapReady}
-            onFollow={() => setFollow(!follow)}
+            followAvailable={mapReady&&followSample(chosen,feed.now)!==null}
+            onFollow={() => {setPlacing(false);setLayers(false);setFollowCamera({...defaultFollowCamera});setFollow(true)}}
             onClose={() => {
               setSelected(null);
               setFollow(false);
             }}
           />
         )}
+        {follow&&chosen&&<FollowPanel track={chosen} tracks={tracks} now={feed.now} mode={feed.mode} camera={followCamera} style={followStyle} trails={trails} onCamera={setFollowCamera} onStyle={setFollowStyle} onTrails={()=>setTrails(!trails)} onSelect={id=>{setFollowCamera({...defaultFollowCamera});setSelected(id)}} onExit={()=>setFollow(false)}/>}
         {lost && (
           <div className="lost-notice panel">
             <strong>
@@ -572,6 +586,7 @@ export default function App() {
       </footer>
       {sources && (
         <SourceDetails
+          isChangi={activeRegion.name==='Singapore'}
           airport={airport}
           status={upstream}
           transport={feed.transport}
