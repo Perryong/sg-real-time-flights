@@ -3,7 +3,7 @@ export type WeatherLoad={phase:'ready';data:WeatherData}|{phase:'off'|'loading'|
 export interface WeatherGate {notBefore:number}
 /** One bounded request per enabled layer; the gate survives toggle changes. */
 export function startWeatherPolling(base:string,layer:WeatherLayer,gate:WeatherGate,onState:(state:WeatherLoad)=>void){
- const interval=layer==='wind'?60000:300000;
+ const interval=layer==='wind'?60000:layer==='wind_regional'?900000:300000;
  let stopped=false,pending=false,timer:ReturnType<typeof setTimeout>|undefined,controller:AbortController|undefined;
  const hidden=()=>document.visibilityState==='hidden';
  const schedule=()=>{clearTimeout(timer);if(!stopped&&!hidden())timer=setTimeout(poll,Math.min(2147483647,Math.max(0,gate.notBefore-Date.now())))};

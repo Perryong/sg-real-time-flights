@@ -51,11 +51,11 @@ export default function App() {
   const feed = useTraffic(region);
   const [weather,setWeather]=useWeatherPreferences();
   const weatherUnavailable=feed.mode!=='live'?'Weather is available in Live mode.':region!=='singapore'?'Weather covers Singapore only.':!liveAvailable?'Connect a live backend for weather.':null;
-  const wind=useWeatherLayer('wind',weather.wind&&!weatherUnavailable);
-  const radar=useWeatherLayer('radar',weather.radar&&!weatherUnavailable);
+  const wind=useWeatherLayer('wind_regional',weather.wind&&!weatherUnavailable);
+  const radar=useWeatherLayer('radar_wide',weather.radar&&!weatherUnavailable);
   const weatherNow=Date.now()/1000;
-  const windStations=wind.phase==='ready'&&wind.data.layer==='wind'&&weatherCurrent(wind.data,weatherNow)?wind.data.stations:null;
-  const radarFrame=radar.phase==='ready'&&radar.data.layer==='radar'&&weatherCurrent(radar.data,weatherNow)?radar.data.radar:null;
+  const windPoints=wind.phase==='ready'&&wind.data.layer==='wind_regional'&&weatherCurrent(wind.data,weatherNow)?wind.data.points:null;
+  const radarFrame=radar.phase==='ready'&&radar.data.layer==='radar_wide'&&weatherCurrent(radar.data,weatherNow)?radar.data.radar:null;
   const [failedRadar,setFailedRadar]=useState<string|null>(null);
   const onRadarError=useCallback(()=>setFailedRadar(radarFrame?.url??null),[radarFrame?.url]);
   const activeRegion=regions[feed.mode==='live'?region:'singapore'];
@@ -212,7 +212,7 @@ export default function App() {
       <main className="workspace">
         <Suspense fallback={null}>
           <MapScene
-            windStations={windStations}
+            windPoints={windPoints}
             radarFrame={radarFrame?.url===failedRadar?null:radarFrame}
             radarOpacity={weather.opacity}
             onRadarError={onRadarError}

@@ -18,3 +18,23 @@ it('does not show stale, future or expired weather as current',()=>{
  expect(weatherCurrent(r,now+601)).toBe(false);expect(weatherCurrent(w,now-200)).toBe(false);
  expect(weatherCurrent({...w,state:'stale'},now)).toBe(false);
 });
+const regional={layer:'wind_regional',kind:'model',source:'Open-Meteo',height_m:10,coverage_km:500,state:'fresh',observed_at:now-900,fetched_at:now,retry_after:900,message:null,points:[{id:'grid-1',lat:3,lon:103,speed_mps:4,from_deg:180}]};
+const wide={...radar,layer:'radar_wide',range_km:480,radar:{...radar.radar,west:99.638609,east:108.290871,south:-2.967382,north:5.657912}};
+it('accepts explicitly modelled regional wind and keeps stations distinct',()=>{
+ expect(parseWeather(regional,'wind_regional')).toEqual(regional);
+ for(const bad of [{...regional,kind:'observed'},{...regional,height_m:1000},{...regional,coverage_km:700},{...regional,points:undefined,stations:wind.stations},{...regional,points:[{...regional.points[0],speed_mps:null}]},{...regional,points:[{...regional.points[0],lat:20}]},{...regional,points:[regional.points[0],regional.points[0]]}])expect(parseWeather(bad,'wind_regional')).toBeNull();
+ expect(parseWeather(regional,'wind')).toBeNull();
+});
+it('accepts 480 km bounds but rejects a relabelled 70 km image',()=>{
+ expect(parseWeather(wide,'radar_wide')).toEqual(wide);
+ expect(parseWeather({...wide,range_km:70},'radar_wide')).toBeNull();
+ expect(parseWeather({...wide,radar:radar.radar},'radar_wide')).toBeNull();
+ expect(parseWeather({...wide,radar:{...wide.radar,observed_at:now}},'radar_wide')).toBeNull();
+});
+it('uses model valid time with a 30 minute freshness limit and requires usable points',()=>{
+ const model=parseWeather(regional,'wind_regional');expect(model).not.toBeNull();
+ if(!model)throw Error('Expected regional weather');
+ expect(weatherCurrent(model,now)).toBe(true);expect(weatherCurrent(model,now+901)).toBe(false);
+ expect(weatherCurrent({...model,observed_at:now+31},now)).toBe(false);
+ const empty=parseWeather({...regional,points:[]},'wind_regional');expect(empty&&weatherCurrent(empty,now)).toBe(false);
+});

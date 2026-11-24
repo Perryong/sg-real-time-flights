@@ -1753,3 +1753,8 @@ input {
 .weather-opacity{display:flex;gap:8px;align-items:center;font-size:10px;flex-wrap:wrap}.weather-opacity output{margin-left:auto}.weather-opacity input{width:100%;accent-color:#bbec87}
 .weather-credit{font-size:9px;color:#9eafb9}.app.following .weather-controls{top:14px;right:24px}
 @media(max-width:799px){.weather-controls{top:51px;right:12px;width:175px}.weather-buttons button{font-size:11px;gap:4px;min-height:36px}.weather-details{max-height:200px}.weather-controls:has(details[open]){right:54px;top:100px}.app.following .weather-controls{top:12px;right:12px}.app.following .weather-details{max-height:180px}}
+.weather-legend > .weather-credit{display:block;margin-top:5px}
+@media(max-width:799px){
+ .app:not(.sidebar-closed):not(.following) .weather-details{display:none}
+ .app:not(.sidebar-closed):not(.following) .weather-controls{top:51px;right:12px}
+}

@@ -43,3 +43,11 @@ it('caps timer sleeps for monthly Retry-After without shortening the gate',()=>{
  const gate={notBefore:Date.now()+31*86400000};const stop=startWeatherPolling('/api/weather','wind',gate,vi.fn());
  expect(spy.mock.calls.at(-1)?.[1]).toBe(2147483647);expect(gate.notBefore).toBe(Date.now()+31*86400000);stop();
 });
+it('polls regional model wind once per fifteen minutes',async()=>{
+ const data={...payload,layer:'wind_regional',kind:'model',source:'Open-Meteo',height_m:10,coverage_km:500,points:[],retry_after:900};
+ const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify(data)));vi.stubGlobal('fetch',fetcher);
+ const stop=startWeatherPolling('/api/weather','wind_regional',{notBefore:0},vi.fn());
+ await vi.advanceTimersByTimeAsync(0);expect(fetcher.mock.calls[0][0]).toBe('/api/weather?layer=wind_regional');
+ await vi.advanceTimersByTimeAsync(899999);expect(fetcher).toHaveBeenCalledTimes(1);
+ await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(2);stop();
+});
