@@ -8,7 +8,6 @@ import {
   Search,
 } from "lucide-react";
 import type { Track, Mode, FeedStatus } from "../data/types";
-import MovementSummary from "./MovementSummary";
 import ProviderCredits from "./ProviderCredits";
 import {useState} from "react";
 import {changiIntent,intentLabel,routeFor} from "../data/routes";
@@ -18,9 +17,6 @@ interface Props {
   regionName?:string;
   isChangi?:boolean;
   radius?:number;
-  onDemand?: boolean;
-  movements?: FeedStatus["movements"];
-  connected?: boolean;
   sources?: FeedStatus["sources"];
   tracks: Track[];
   selected: string | null;
@@ -73,7 +69,6 @@ export default function TrafficList(p: Props) {
           <span>AIRBORNE</span>
         </div>
       </div>
-      {p.mode === "live" && p.isChangi!==false && <MovementSummary onDemand={p.onDemand} counts={p.movements} now={p.now} connected={!!p.connected} />}
       <label className="panel-search">
         <Search size={15} />
         <input

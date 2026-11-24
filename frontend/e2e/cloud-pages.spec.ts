@@ -13,10 +13,8 @@ test('Pages uses shared HTTP updates and keeps the selectable Cesium 3D view',as
     headers:{'access-control-allow-origin':'*','x-response-time':String(now),'access-control-expose-headers':'X-Response-Time'}}));
   await page.goto('./');
   await expect(page.getByRole('button',{name:'Select CLOUD TEST'})).toBeVisible();
-  await expect(page.getByLabel('Detected landings')).toHaveText('3');
-  await expect(page.getByLabel('Detected takeoffs')).toHaveText('2');
-  await expect(page.getByText('Detected today · partial coverage')).toBeVisible();
-  await expect(page.getByText(/only while someone is viewing/)).toBeVisible();
+  await expect(page.getByRole('region',{name:'Changi daily movements'})).toHaveCount(0);
+  await expect(page.getByText(/Counts are saved in the cloud/)).toHaveCount(0);
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await expect(page.getByRole('button',{name:'2D',exact:true})).toBeVisible();
   await expect(page.locator('.cesium-widget canvas')).toBeVisible();

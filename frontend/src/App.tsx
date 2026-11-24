@@ -281,9 +281,6 @@ export default function App() {
               radius={activeRegion.radius}
               regionName={activeRegion.name}
               isChangi={feed.mode!=='live'||region==='singapore'}
-              movements={upstream?.movements}
-              onDemand={upstream?.collection_mode === "on_demand"}
-              connected={feed.transport === "connected"}
               sources={upstream?.sources}
               tracks={tracks}
               selected={selected}
