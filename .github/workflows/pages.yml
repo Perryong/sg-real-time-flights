@@ -1,12 +1,14 @@
 name: Publish Changi Observatory
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: github-pages
+  group: ${{ github.event_name == 'pull_request' && format('verify-pr-{0}', github.event.number) || 'github-pages' }}
   cancel-in-progress: true
 jobs:
   build:
@@ -25,25 +27,32 @@ jobs:
           cache-dependency-path: backend/requirements.lock
       - name: Install Redis for shared-cache integration tests
         run: sudo apt-get update -qq && sudo apt-get install -y redis-server
-      - name: Install and test backend
-        run: |
-          python -m pip install -r backend/requirements.lock
-          python -m pytest -q
-      - name: Install and test frontend
+      - run: python -m pip install -r backend/requirements.lock
+      - run: npm ci
         working-directory: frontend
-        run: |
-          npm ci
-          npm test
-      - name: Build Pages
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Verify tracker with synthetic data
+        run: sh scripts/verify-feature.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure
+          path: frontend/test-results/
+          if-no-files-found: ignore
+      - name: Build published Pages configuration
+        if: github.event_name != 'pull_request'
         working-directory: frontend
         env:
           VITE_API_BASE_URL: ${{ vars.LIVE_BACKEND_URL }}
           VITE_LIVE_TRANSPORT: ${{ vars.LIVE_TRANSPORT }}
         run: npm run build:pages
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: frontend/dist-pages
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:

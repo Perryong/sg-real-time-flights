@@ -36,10 +36,30 @@ def build_fixture(duration=180,count=16):
         frames.append(frame.model_dump(mode='json'))
     return {'provenance':'Synthetic test scenario; no real flights','epoch':EPOCH,'duration':duration,'interval':5,'frames':frames}
 
-if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--check',action='store_true');args=p.parse_args()
-    path=Path('tests/fixtures/scenarios/changi-demo.json'); data=json.dumps(build_fixture(),separators=(',',':'))+'\n'
+def comparable_fixture(scenario):
+    """Apply wire defaults and ignore sub-millimetre geodesic rounding."""
+    frames = []
+    for raw_frame in scenario['frames']:
+        snapshot = Snapshot.model_validate(raw_frame, strict=True, extra='forbid')
+        for track in snapshot.tracks:
+            for observation in [track.latest, *track.history]:
+                observation.lat = round(observation.lat, 9)
+                observation.lon = round(observation.lon, 9)
+        frames.append(snapshot.model_dump(mode='json'))
+    return {**scenario, 'frames': frames}
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--check', action='store_true')
+    args = parser.parse_args()
+    path = Path('tests/fixtures/scenarios/changi-demo.json')
+    generated = build_fixture()
     if args.check:
-        assert path.read_text()==data,'Fixture must be regenerated'
-        print('Fixture is deterministic and current')
-    else:path.write_text(data);print('Generated',len(data),'bytes')
+        if comparable_fixture(json.loads(path.read_text())) != comparable_fixture(generated):
+            raise SystemExit('Fixture differs from generated observations; inspect before regenerating')
+        print('Fixture matches generated observations and metadata')
+    else:
+        data = json.dumps(generated, separators=(',', ':')) + '\n'
+        path.write_text(data)
+        print('Generated', len(data), 'bytes')

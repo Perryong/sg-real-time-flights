@@ -1,0 +1,61 @@
+name: Develop a feature with pstack
+on:
+  workflow_dispatch:
+    inputs:
+      feature:
+        description: What should the user be able to do?
+        required: true
+        type: string
+      acceptance:
+        description: What observable result verifies the feature?
+        required: true
+        type: string
+      launch:
+        description: Launch a Cursor Cloud Agent (uses your Cursor plan)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.ref_name == github.event.repository.default_branch && github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read Lauren Tan's pinned feature playbook
+        uses: actions/checkout@v4
+        with:
+          repository: cursor/plugins
+          ref: 7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9
+          path: .pstack-upstream
+          sparse-checkout: pstack/skills/poteto-mode/playbooks
+          persist-credentials: false
+      - name: Prepare the feature request
+        env:
+          FEATURE: ${{ inputs.feature }}
+          ACCEPTANCE: ${{ inputs.acceptance }}
+        run: |
+          jq -n --arg feature "$FEATURE" --arg acceptance "$ACCEPTANCE" \
+            --arg repo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --arg base "$GITHUB_REF_NAME" \
+            --rawfile playbook .pstack-upstream/pstack/skills/poteto-mode/playbooks/feature.md \
+            --rawfile verify .cursor/skills/verify-changi/SKILL.md \
+            '{prompt: {text: ("Implement the feature on a separate branch. Finish at one reviewable PR; leave merging and deployment to the maintainer. Use the supplied pstack Feature playbook and the repository verification skill. Include rerun commands, evidence and any blocked checks in the PR.\n\nFeature\n" + $feature + "\n\nAcceptance\n" + $acceptance + "\n\npstack Feature playbook\n" + $playbook + "\n\nProject verification\n" + $verify)}, repos: [{url: $repo, startingRef: $base}], workOnCurrentBranch: false, autoCreatePR: true}' > "$RUNNER_TEMP/request.json"
+      - name: Downloadable preview
+        if: ${{ !inputs.launch }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pstack-feature-request
+          path: ${{ runner.temp }}/request.json
+      - name: Launch feature agent
+        if: inputs.launch
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          : "${CURSOR_API_KEY:?Add CURSOR_API_KEY to repository Actions secrets to enable launch}"
+          curl --silent --show-error --fail-with-body --max-time 60 \
+            --user "$CURSOR_API_KEY:" --json @"$RUNNER_TEMP/request.json" \
+            https://api.cursor.com/v1/agents --output "$RUNNER_TEMP/agent.json"
+          jq -er '(.agent.id // .id) | "Cursor agent: " + .' "$RUNNER_TEMP/agent.json" >> "$GITHUB_STEP_SUMMARY"
