@@ -39,10 +39,19 @@ async def test_foreign_frame_has_no_changi_movements_or_phase(cache_factory):
         assert frame.status.sources['adsb.fi'].enabled is False
 
 @pytest.mark.asyncio
-async def test_global_budget_shared_across_regions_and_viewers(cache_factory):
-    a=cache_factory('global-a');b=cache_factory('global-b')
-    a.rate_prefix=b.rate_prefix='shared-global-budget'
-    for i in range(60):
-        await (a if i%2 else b).claim('viewer-'+str(i))
-    with pytest.raises(CacheLimited):await a.claim('new-viewer')
-    with pytest.raises(CacheLimited):await b.claim('another-viewer')
+async def test_global_budget_shared_across_regions_and_viewers(cache_factory,command):
+    # Redis budgets reset at minute boundaries, including during this test.
+    for attempt in range(3):
+        minute=int(command('TIME')[0])//60
+        a=cache_factory();b=cache_factory()
+        a.rate_prefix=b.rate_prefix=a.prefix+'-shared-global-budget'
+        for i in range(60):
+            await (a if i%2 else b).claim('viewer-'+str(i))
+        limited=[]
+        for cache,viewer in ((a,'new-viewer'),(b,'another-viewer')):
+            try: await cache.claim(viewer)
+            except CacheLimited: limited.append(True)
+        if int(command('TIME')[0])//60 == minute:
+            assert len(limited)==2
+            return
+    pytest.fail('Could not exercise shared limits within one Redis minute')

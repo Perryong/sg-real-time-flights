@@ -104,3 +104,108 @@ export function addRadarLayer(viewer:Viewer,frame:RadarFrame,opacity:number,onEr
   }).catch(fail);
   return cleanup;
 }
+
+type RadarTarget = {
+  frame:RadarFrame;
+  opacity:number;
+  onReady:(at:number|null)=>void;
+  onError:()=>void;
+};
+
+export function createRadarLayerController(viewer:Viewer) {
+  const cache = new Map<string,SingleTileImageryProvider>();
+  let disposed = false;
+  let target:RadarTarget|null = null;
+  let pending:{url:string}|null = null;
+  let visible:{url:string;layer:ImageryLayer;removeError:()=>void}|null = null;
+
+  function removeVisible() {
+    if (!visible) return;
+    visible.removeError();
+    if (!viewer.isDestroyed()) viewer.imageryLayers.remove(visible.layer,true);
+    visible = null;
+  }
+
+  function destroy() {
+    if (disposed) return;
+    disposed = true;
+    target = null;
+    pending = null;
+    removeVisible();
+    // SingleTileImageryProvider has no destroy method. Dropping references lets
+    // its decoded image be collected; destroying the layer releases GPU resources.
+    cache.clear();
+  }
+
+  function fail() {
+    if (disposed || viewer.isDestroyed() || !target) return;
+    const failed = target;
+    target = null;
+    pending = null;
+    removeVisible();
+    failed.onReady(null);
+    failed.onError();
+  }
+
+  function display(provider:SingleTileImageryProvider,current:RadarTarget) {
+    const url = current.frame.url;
+    cache.delete(url);
+    cache.set(url,provider);
+    if (cache.size > 13) {
+      const oldest = cache.keys().next();
+      if (!oldest.done) cache.delete(oldest.value);
+    }
+    if (visible?.url !== url) {
+      // Remove first so there is never more than one radar layer, even during
+      // collection events. Appending preserves base imagery indices 0–2.
+      removeVisible();
+      const layer = viewer.imageryLayers.addImageryProvider(provider);
+      const removeError = provider.errorEvent.addEventListener(()=>{
+        cache.delete(url);
+        fail();
+      });
+      visible = {url,layer,removeError};
+    }
+    visible.layer.alpha = current.opacity;
+    current.onReady(current.frame.observed_at);
+  }
+
+  function show(frame:RadarFrame|null,opacity:number,onReady:(at:number|null)=>void,onError:()=>void) {
+    if (disposed) return;
+    if (viewer.isDestroyed()) {destroy();return;}
+    if (!frame) {
+      target = null;
+      pending = null;
+      removeVisible();
+      onReady(null);
+      return;
+    }
+    target = {frame,opacity:Math.max(0,Math.min(1,opacity)),onReady,onError};
+    const cached = cache.get(frame.url);
+    if (cached) {
+      pending = null;
+      display(cached,target);
+      return;
+    }
+    // Opacity/callback changes share the in-flight image and use the latest
+    // target when it resolves. Superseded loads never enter the decoded cache.
+    if (pending?.url === frame.url) return;
+    const load = {url:frame.url};
+    pending = load;
+    void SingleTileImageryProvider.fromUrl(frame.url,{
+      rectangle:Rectangle.fromDegrees(frame.west,frame.south,frame.east,frame.north),
+      credit:new Credit('<a href="https://data.gov.sg/datasets/d_418e9ac3414fd927b7405631e0a7bc82/view">Rain radar: Meteorological Service Singapore / NEA</a>',true),
+    }).then(provider=>{
+      if (disposed || pending !== load) return;
+      if (viewer.isDestroyed()) {destroy();return;}
+      pending = null;
+      if (target) display(provider,target);
+    },()=>{
+      if (disposed || pending !== load) return;
+      if (viewer.isDestroyed()) {destroy();return;}
+      fail();
+    });
+  }
+
+  return {show,destroy};
+}

@@ -1,6 +1,6 @@
 import { COVERAGE_RADIUS_KM } from "./data/coverage";
 import { airportUrl, assetUrl, liveAvailable, httpFeedUrl } from "./data/hosting";
-import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   Radar,
   MapPin,
@@ -45,6 +45,8 @@ import type { Airport, Mode, Track } from "./data/types";
 import WeatherControls from './components/WeatherControls';
 import {useWeatherLayer,useWeatherPreferences} from './hooks/useWeather';
 import {weatherCurrent} from './data/weather';
+import {useRadarPlayback} from './hooks/useRadarPlayback';
+import RadarReplayControls from './components/RadarReplayControls';
 
 export default function App() {
   const [region,setRegion]=useState<RegionId>("singapore");
@@ -55,9 +57,8 @@ export default function App() {
   const radar=useWeatherLayer('radar_wide',weather.radar&&!weatherUnavailable);
   const weatherNow=Date.now()/1000;
   const windPoints=wind.phase==='ready'&&wind.data.layer==='wind_regional'&&weatherCurrent(wind.data,weatherNow)?wind.data.points:null;
-  const radarFrame=radar.phase==='ready'&&radar.data.layer==='radar_wide'&&weatherCurrent(radar.data,weatherNow)?radar.data.radar:null;
-  const [failedRadar,setFailedRadar]=useState<string|null>(null);
-  const onRadarError=useCallback(()=>setFailedRadar(radarFrame?.url??null),[radarFrame?.url]);
+  const liveRadarFrame=radar.phase==='ready'&&radar.data.layer==='radar_wide'&&weatherCurrent(radar.data,weatherNow)?radar.data.radar:null;
+  const playback=useRadarPlayback(weather.radar&&!weatherUnavailable,liveRadarFrame,weatherNow);
   const activeRegion=regions[feed.mode==='live'?region:'singapore'];
   const [followCamera,setFollowCamera]=useState({...defaultFollowCamera});
   const [followStyle,setFollowStyle]=useState<FollowStyle>("satellite");
@@ -213,9 +214,10 @@ export default function App() {
         <Suspense fallback={null}>
           <MapScene
             windPoints={windPoints}
-            radarFrame={radarFrame?.url===failedRadar?null:radarFrame}
+            radarFrame={playback.frame}
             radarOpacity={weather.opacity}
-            onRadarError={onRadarError}
+            onRadarError={playback.onError}
+            onRadarReady={playback.onReady}
             region={activeRegion}
             followCamera={followCamera}
             followStyle={followStyle}
@@ -245,7 +247,8 @@ export default function App() {
           />
         </Suspense>
         <div className="map-shade" />
-        <WeatherControls preferences={weather} onChange={setWeather} wind={wind} radar={radar} unavailable={weatherUnavailable} now={weatherNow} radarError={!!radarFrame&&failedRadar===radarFrame.url}/>
+        <RadarReplayControls playback={playback}/>
+        <WeatherControls preferences={weather} onChange={setWeather} wind={wind} radar={radar} unavailable={weatherUnavailable} now={weatherNow} radarError={playback.imageError} playback={playback}/>
         {!follow&&<select className="mobile-region-picker" aria-label="Map region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl} onChange={e=>{setSelected(null);setFollow(false);setObserverOpen(false);setPlacing(false);setView('overhead');setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name}</option>)}</select>}
         <nav className="rail" aria-label="Primary navigation">
           <button

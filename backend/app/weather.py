@@ -14,12 +14,12 @@ from fastapi.responses import JSONResponse
 from .cloud_cache import RedisCache, CacheUnavailable
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import math
 from urllib.parse import urlsplit
 
-INTERVAL = {'wind': 60, 'radar': 300, 'wind_regional': 900, 'radar_wide': 300}
-FRESH_AGE = {'wind': 600, 'radar': 900, 'wind_regional': 1800, 'radar_wide': 900}
+INTERVAL = {'wind': 60, 'radar': 300, 'wind_regional': 900, 'radar_wide': 300, 'radar_history': 300}
+FRESH_AGE = {'wind': 600, 'radar': 900, 'wind_regional': 1800, 'radar_wide': 900, 'radar_history': 600}
 RADAR_HOST = 'dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com'
 URLS = {
     'speed': 'https://api-open.data.gov.sg/v2/real-time/api/wind-speed',
@@ -69,15 +69,22 @@ def validate_model_position(lat, lon, requested):
         raise ValueError('Model cell lies outside the requested region')
 
 
-def empty_layer_data(layer):
+def history_window(now):
+    end = math.floor(now / 300) * 300
+    return {'window_start': end - 3600, 'window_end': end}
+
+
+def empty_layer_data(layer, now=None):
     if layer == 'wind': return {'stations': []}
     if layer == 'wind_regional':
         return {'kind': 'model', 'source': 'Open-Meteo', 'height_m': 10, 'coverage_km': 500, 'points': []}
+    if layer == 'radar_history':
+        return {'range_km': 480, **history_window(now), 'frames': [], 'expected_frames': 13}
     return {'radar': None, **({'range_km': 480} if layer == 'radar_wide' else {})}
 
 
 def radar_bounds(west, south, east, north, layer):
-    if layer == 'radar_wide':
+    if layer in ('radar_wide', 'radar_history'):
         for value, expected in zip((west, south, east, north), (99.638609, -2.967382, 108.290871, 5.657912)):
             number(value, expected-.05, expected+.05)
     else:
@@ -109,7 +116,7 @@ def envelope(layer, now, observed=None, message=None):
     return {'layer': layer, 'state': 'fresh' if observed is not None else 'unavailable',
             'observed_at': observed, 'fetched_at': now if observed is not None else None,
             'retry_after': INTERVAL[layer], 'message': message,
-            **empty_layer_data(layer)}
+            **empty_layer_data(layer, now)}
 
 
 def image_url(value):
@@ -130,6 +137,9 @@ def validate_frame(frame, now):
         if frame['message'] is not None and not isinstance(frame['message'], str): raise ValueError()
         if frame['observed_at'] is not None: number(frame['observed_at'], 0, now+60)
         if frame['fetched_at'] is not None: number(frame['fetched_at'], 0, now+60)
+        if layer == 'radar_history':
+            validate_history(frame, now)
+            return
         if frame['state'] != 'unavailable' and (frame['observed_at'] is None or frame['fetched_at'] is None
                 or not frame['stations' if layer == 'wind' else 'points' if layer == 'wind_regional' else 'radar']):
             raise ValueError('Weather observations are missing')
@@ -159,10 +169,44 @@ def validate_frame(frame, now):
         raise ValueError('Invalid cached weather') from None
 
 
+def validate_history(frame, now):
+    if frame['range_km'] != 480 or frame['expected_frames'] != 13: raise ValueError()
+    end = number(frame['window_end'], 3600, now+60)
+    start = number(frame['window_start'], 0, end)
+    if end % 300 or end-start != 3600: raise ValueError('Invalid radar history window')
+    frames = frame['frames']
+    if not isinstance(frames, list) or len(frames) > 13: raise ValueError()
+    if frame['state'] != 'unavailable' and (not frames or frame['fetched_at'] is None): raise ValueError()
+    if frames and frame['fetched_at'] is None: raise ValueError()
+    if frame['fetched_at'] is not None and not end <= frame['fetched_at'] < end+300:
+        raise ValueError('Radar history window does not match snapshot time')
+    last = None
+    for radar in frames:
+        at = number(radar['observed_at'], start, end)
+        if last is not None and at <= last: raise ValueError('Radar history must be unique and ascending')
+        image_url(radar['url'])
+        radar_bounds(radar['west'], radar['south'], radar['east'], radar['north'], 'radar_history')
+        number(radar['expires_at'], 0, now+86400)
+        last = at
+    if frame['observed_at'] != last: raise ValueError('Radar history observation does not match frames')
+
+
 def render(frame, now):
     validate_frame(frame, now)
     result = deepcopy(frame)
     layer = result['layer']; observed = result['observed_at']
+    if layer == 'radar_history':
+        result['frames'] = [radar for radar in result['frames'] if radar['expires_at'] > now]
+        fetched = result['fetched_at']
+        age = now-fetched if fetched is not None else math.inf
+        if age > 900 or now-result['window_end'] > 900:
+            result.update(state='unavailable', frames=[], message='Radar history snapshot is too old')
+        elif not result['frames']:
+            result.update(state='unavailable', message=result['message'] or 'Radar history images have expired')
+        elif age > FRESH_AGE[layer]:
+            result.update(state='stale', message=result['message'] or 'Radar history update is delayed')
+        result['observed_at'] = result['frames'][-1]['observed_at'] if result['frames'] else None
+        return result
     if observed is None: return result
     age = now - number(observed, 0, now + 60)
     if layer in ('radar', 'radar_wide') and (not result['radar'] or result['radar']['expires_at'] <= now):
@@ -271,6 +315,41 @@ def normalize_radar(payload, now, layer='radar'):
         return render(result, now)
     except (KeyError, TypeError, AttributeError, IndexError):
         raise ValueError('Invalid radar response') from None
+
+
+def normalize_radar_history(payloads, now):
+    """Normalize actual day-page observations without live radar's age cutoff."""
+    result = envelope('radar_history', now)
+    frames = {}
+    try:
+        for payload in payloads:
+            data = data_body(payload)
+            bounds, projection = data['boundaryBox'], data['projection']
+            if bounds['crs'] != 'EPSG:4326' or projection['type'] != 'Azimuthal Equidistant':
+                raise ValueError('Unsupported radar projection')
+            number(projection['center']['longitude'], 103.922583, 104.022583)
+            number(projection['center']['latitude'], 1.29911, 1.39911)
+            west, north = bounds['upperLeft']['longitude'], bounds['upperLeft']['latitude']
+            east, south = bounds['lowerRight']['longitude'], bounds['lowerRight']['latitude']
+            radar_bounds(west, south, east, north, 'radar_history')
+            if not isinstance(data['records'], list): raise ValueError('Invalid radar records')
+            for record in data['records']:
+                try:
+                    at = number(timestamp(record['timestamp']), result['window_start'], result['window_end'])
+                    image = record['image']
+                    if image['range'] != '480km' or image['format'].lower() != 'png': raise ValueError()
+                    radar = {'url': image_url(image['url']), 'west': west, 'south': south, 'east': east, 'north': north,
+                             'observed_at': at, 'expires_at': number(timestamp(image['urlExpiresAt']), now+1, now+86400)}
+                except (KeyError, TypeError, AttributeError, ValueError):
+                    continue
+                if at not in frames or radar['expires_at'] > frames[at]['expires_at']:
+                    frames[at] = radar
+        if not frames: raise ValueError('No usable radar history observations')
+        result.update(state='fresh', fetched_at=now, observed_at=max(frames),
+                      frames=[frames[at] for at in sorted(frames)[-13:]])
+        return render(result, now)
+    except (KeyError, TypeError, AttributeError, IndexError):
+        raise ValueError('Invalid radar history response') from None
 
 # Budget at most 100k estimated Redis commands/month for weather, leaving 400k
 # of the 500k free allowance for aircraft/location. Reserve 32 per admitted
@@ -385,9 +464,8 @@ class WeatherFeed:
     def __init__(self, cache, client, clock=time.time):
         self.cache, self.client, self.clock = cache, client, clock
 
-    async def fetch(self, name):
+    async def fetch(self, name, params=None):
         key = os.getenv('DATAGOV_API_KEY', '') if name != 'wind_regional' else ''
-        params = None
         if name == 'wind_regional':
             params = {'latitude': ','.join(str(p['lat']) for p in REGIONAL_GRID),
                       'longitude': ','.join(str(p['lon']) for p in REGIONAL_GRID),
@@ -429,6 +507,14 @@ class WeatherFeed:
                     frame = normalize_wind(speed, direction, self.clock())
                 elif layer == 'wind_regional':
                     frame = normalize_regional_wind(await self.fetch(layer), self.clock())
+                elif layer == 'radar_history':
+                    now = self.clock()
+                    window = history_window(now)
+                    singapore = timezone(timedelta(hours=8))
+                    days = dict.fromkeys(datetime.fromtimestamp(window[key], singapore).strftime('%Y-%m-%d')
+                                         for key in ('window_end', 'window_start'))
+                    payloads = [await self.fetch('radar_wide', {'date': day}) for day in days]
+                    frame = normalize_radar_history(payloads, now)
                 else:
                     frame = normalize_radar(await self.fetch(layer), self.clock(), layer=layer)
             retry = INTERVAL[layer]; failures = 0
@@ -457,7 +543,7 @@ async def weather(request: Request):
     layer = request.query_params.get('layer')
     headers = {'Cache-Control': 'no-store'}
     if layer not in INTERVAL or len(request.query_params.getlist('layer')) != 1 or any(k != 'layer' for k in request.query_params):
-        return JSONResponse({'error': 'Choose layer=wind, radar, wind_regional or radar_wide'}, status_code=400, headers=headers)
+        return JSONResponse({'error': 'Choose layer=wind, radar, wind_regional, radar_wide or radar_history'}, status_code=400, headers=headers)
     viewer = request.headers.get('x-vercel-forwarded-for') if os.getenv('VERCEL') else request.client.host if request.client else 'unknown'
     async with httpx.AsyncClient(follow_redirects=False) as client:
         cache = WeatherCache(client, os.getenv('KV_REST_API_URL', os.getenv('UPSTASH_REDIS_REST_URL', '')),

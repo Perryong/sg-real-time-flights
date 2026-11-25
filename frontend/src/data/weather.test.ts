@@ -38,3 +38,17 @@ it('uses model valid time with a 30 minute freshness limit and requires usable p
  expect(weatherCurrent({...model,observed_at:now+31},now)).toBe(false);
  const empty=parseWeather({...regional,points:[]},'wind_regional');expect(empty&&weatherCurrent(empty,now)).toBe(false);
 });
+const history={layer:'radar_history',range_km:480,window_start:now-3600,window_end:now,expected_frames:13,state:'fresh',observed_at:now-300,fetched_at:now,retry_after:300,message:null,frames:[{...wide.radar,observed_at:now-3600},{...wide.radar,url:wide.radar.url+'?frame=2',observed_at:now-300}]};
+it('accepts historical frames older than the live freshness limit without filling gaps',()=>{
+ const parsed=parseWeather(history,'radar_history');expect(parsed).toEqual(history);
+ expect(parsed&&weatherCurrent(parsed,now)).toBe(true);
+ expect(parsed&&weatherCurrent(parsed,now+901)).toBe(false);
+});
+it('rejects duplicate, unordered, out-of-window and relabelled history images',()=>{
+ for(const bad of [{...history,frames:[history.frames[1],history.frames[0]]},{...history,frames:[history.frames[0],history.frames[0]]},{...history,frames:[{...history.frames[0],observed_at:now-3900}]},{...history,frames:[radar.radar]},{...history,window_start:now-7200},{...history,expected_frames:25}])expect(parseWeather(bad,'radar_history')).toBeNull();
+});
+it('does not expose expired history or unavailable snapshots as playable',()=>{
+ const expired=parseWeather({...history,frames:history.frames.map(f=>({...f,expires_at:now-1}))},'radar_history');
+ expect(expired&&weatherCurrent(expired,now)).toBe(false);
+ const unavailable=parseWeather({...history,state:'unavailable'},'radar_history');expect(unavailable&&weatherCurrent(unavailable,now)).toBe(false);
+});

@@ -1,6 +1,6 @@
 import {regions} from './regions';
 
-export type WeatherLayer = 'wind' | 'radar' | 'wind_regional' | 'radar_wide';
+export type WeatherLayer = 'wind' | 'radar' | 'wind_regional' | 'radar_wide' | 'radar_history';
 export interface WeatherEnvelope {
  state:'fresh'|'stale'|'unavailable';
  /** Observation time for measured feeds; valid time for the explicitly modelled feed. */
@@ -14,7 +14,8 @@ export interface WindWeather extends WeatherEnvelope {layer:'wind';stations:Wind
 export interface RegionalWindWeather extends WeatherEnvelope {layer:'wind_regional';kind:'model';source:'Open-Meteo';height_m:10;coverage_km:500;points:WindPoint[]}
 export interface RadarWeather extends WeatherEnvelope {layer:'radar';radar:RadarFrame|null}
 export interface WideRadarWeather extends WeatherEnvelope {layer:'radar_wide';range_km:480;radar:RadarFrame|null}
-export type WeatherData = WindWeather | RegionalWindWeather | RadarWeather | WideRadarWeather;
+export interface RadarHistoryWeather extends WeatherEnvelope {layer:'radar_history';range_km:480;window_start:number;window_end:number;expected_frames:13;frames:RadarFrame[]}
+export type WeatherData = WindWeather | RegionalWindWeather | RadarWeather | WideRadarWeather | RadarHistoryWeather;
 
 const record=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const finite=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
@@ -43,6 +44,11 @@ function parseRadar(value:unknown):RadarFrame|null|undefined {
  }catch{return undefined}
  return {url,west,south,east,north,observed_at,expires_at};
 }
+const wideBounds=(radar:RadarFrame)=>Math.abs(radar.west-99.638609)<=.05&&Math.abs(radar.east-108.290871)<=.05&&Math.abs(radar.south+2.967382)<=.05&&Math.abs(radar.north-5.657912)<=.05;
+export function historyFrames(data:RadarHistoryWeather,now:number):RadarFrame[]{
+ if(data.state==='unavailable'||data.fetched_at===null||now-data.fetched_at>900||data.fetched_at>now+30||now-data.window_end>900||data.window_end>now+30)return [];
+ return data.frames.filter(frame=>frame.expires_at>now+10);
+}
 export function parseWeather(value:unknown,layer:WeatherLayer):WeatherData|null {
  if(!record(value)||value.layer!==layer)return null;
  const {state,observed_at,fetched_at,retry_after,message}=value;
@@ -68,16 +74,29 @@ export function parseWeather(value:unknown,layer:WeatherLayer):WeatherData|null 
   }
   return {layer,...envelope,kind:'model',source:'Open-Meteo',height_m:10,coverage_km:500,points};
  }
+ if(layer==='radar_history'){
+  const {window_start,window_end,expected_frames}=value;
+  if(value.range_km!==480||expected_frames!==13||!finite(window_start)||!finite(window_end)||window_start<0||window_end-window_start!==3600||window_end%300!==0||!Array.isArray(value.frames)||value.frames.length>13)return null;
+  const frames:RadarFrame[]=[];
+  for(const raw of value.frames){
+   const frame=parseRadar(raw);
+   if(!frame||!wideBounds(frame)||frame.observed_at<window_start||frame.observed_at>window_end||(frames.length>0&&frame.observed_at<=frames[frames.length-1].observed_at))return null;
+   frames.push(frame);
+  }
+  if(observed_at!==(frames.at(-1)?.observed_at??null))return null;
+  return {layer,...envelope,range_km:480,window_start,window_end,expected_frames:13,frames};
+ }
  const radar=parseRadar(value.radar);
  if(radar===undefined||radar&&radar.observed_at!==observed_at)return null;
  if(layer==='radar_wide'){
   if(value.range_km!==480)return null;
-  if(radar&&(Math.abs(radar.west-99.638609)>.05||Math.abs(radar.east-108.290871)>.05||Math.abs(radar.south+2.967382)>.05||Math.abs(radar.north-5.657912)>.05))return null;
+  if(radar&&!wideBounds(radar))return null;
   return {layer,...envelope,range_km:480,radar};
  }
  return {layer,...envelope,radar};
 }
 export function weatherCurrent(data:WeatherData,now:number):boolean {
+ if(data.layer==='radar_history')return historyFrames(data,now).length>0;
  const age=data.observed_at===null?Infinity:now-data.observed_at;
  const maxAge=data.layer==='wind'?600:data.layer==='wind_regional'?1800:900;
  if(data.state!=='fresh'||age< -30||age>maxAge)return false;
