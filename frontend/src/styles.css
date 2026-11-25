@@ -1758,3 +1758,16 @@ input {
  .app:not(.sidebar-closed):not(.following) .weather-details{display:none}
  .app:not(.sidebar-closed):not(.following) .weather-controls{top:51px;right:12px}
 }
+.radar-history-open,.radar-replay-actions button{border:1px solid #61704d;border-radius:5px;padding:7px 10px;color:#d9efb2;background:#233125;font-size:11px;min-height:34px}
+.radar-history-open{margin-top:4px;width:100%}
+.radar-history-banner{position:absolute;z-index:9;bottom:85px;left:50%;transform:translateX(-50%);width:min(400px,calc(100% - 90px));padding:12px;border-radius:9px;background:#14222af5;border-color:#8b7350;font-size:11px}
+.radar-replay-heading,.radar-replay-actions,.radar-replay-range{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.radar-replay-heading strong{font-size:10px;letter-spacing:1px;color:#f2cc82}.radar-replay-heading span{font-size:10px;color:#c1ced1}
+.radar-replay-time{margin:8px 0;color:#e1e9eb;font-size:12px}.radar-replay-actions button{flex:1}.radar-history-banner input{width:100%;accent-color:#e6c481;margin:12px 0 5px}.radar-replay-range{font-size:9px;color:#b6c4c8}.radar-replay-status{font-size:10px;line-height:1.4;margin:8px 0 0;color:#d0c7ae}
+.app.following .radar-history-banner{bottom:calc(var(--follow-panel-height,320px) + 15px)}
+@media(max-width:799px){
+ .radar-history-banner{left:64px;right:12px;transform:none;width:auto;bottom:78px;padding:10px}
+ .app:has(.pin-placement-banner) .radar-history-banner{bottom:130px}
+ .app.following:has(.radar-history-banner) .weather-details{display:none}
+ .app.following .radar-history-banner{left:12px;right:12px}
+}

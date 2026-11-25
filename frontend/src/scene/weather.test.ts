@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {Cartesian3, Cartographic, Event as CesiumEvent, ImageryLayerCollection, Math as CesiumMath, PrimitiveCollection, SingleTileImageryProvider} from 'cesium';
+import {Cartesian3, Cartographic, Event as CesiumEvent, ImageryLayerCollection, Math as CesiumMath, PrimitiveCollection, Resource, SingleTileImageryProvider} from 'cesium';
 import type {RadarFrame, WindPoint, WindStation} from '../data/weather';
-import {addRadarLayer, addRegionalWindLayer, addWindLayer} from './weather';
+import {createRadarLayerController, addRadarLayer, addRegionalWindLayer, addWindLayer} from './weather';
 
 const station:WindStation = {id:'S1',name:'Station',lat:1.35,lon:103.8,speed_mps:3,from_deg:0};
 const frame:RadarFrame = {url:'https://www.weather.gov.sg/files/radar/radar.png',west:103.3,south:.8,east:104.5,north:1.9,observed_at:100,expires_at:9999999999};
@@ -230,5 +230,167 @@ describe('rain radar',()=>{
     expect(viewer.imageryLayers.length).toBe(0);
     expect(onError).not.toHaveBeenCalled();
     cleanup();
+  });
+});
+
+
+describe('radar playback controller',()=>{
+  function snapshot(at:number):RadarFrame {return {...frame,url:`https://www.weather.gov.sg/files/radar/${at}.png`,observed_at:at};}
+  function downloads() {
+    const requests:Array<{url:string;resolve:(image:HTMLImageElement)=>void;reject:(error:Error)=>void}>=[];
+    vi.spyOn(Resource.prototype,'fetchImage').mockImplementation(function(this:Resource){
+      return new Promise<HTMLImageElement>((resolve,reject)=>requests.push({url:this.url,resolve,reject}));
+    });
+    const finish=async(index:number)=>{
+      const image=new Image(512,512);
+      requests[index].resolve(image);
+      await flush();
+      return image;
+    };
+    return {requests,finish};
+  }
+  async function flush() {for(let i=0;i<8;i++)await Promise.resolve();}
+  function radarProvider(viewer:ReturnType<typeof setup>,index=0) {
+    const loaded=viewer.imageryLayers.get(index).imageryProvider;
+    if (!(loaded instanceof SingleTileImageryProvider)) throw new Error('Expected single tile radar');
+    return loaded;
+  }
+  function withBases() {
+    const viewer=setup();
+    for(let i=0;i<3;i++)viewer.imageryLayers.addImageryProvider(provider());
+    return viewer;
+  }
+
+  it('keeps the previous image until replacement loads and reports only the installed timestamp',async()=>{
+    const viewer=withBases(),network=downloads(),ready=vi.fn(),error=vi.fn();
+    const controller=createRadarLayerController(viewer as never);
+    const bases=[0,1,2].map(i=>viewer.imageryLayers.get(i));
+    const counts:number[]=[];
+    viewer.imageryLayers.layerAdded.addEventListener(()=>counts.push(viewer.imageryLayers.length));
+    controller.show(snapshot(100),.4,ready,error);
+    expect(ready).not.toHaveBeenCalled();
+    const image=await network.finish(0);
+    const old=viewer.imageryLayers.get(3),oldProvider=old.imageryProvider;
+    expect(await oldProvider.requestImage(0,0,0)).toBe(image);
+    expect(old.alpha).toBe(.4);
+    expect(CesiumMath.toDegrees(oldProvider.rectangle.west)).toBeCloseTo(103.3);
+    expect(oldProvider.credit).toBeTruthy();
+    expect(ready.mock.calls).toEqual([[100]]);
+    controller.show(snapshot(200),.7,ready,error);
+    expect(viewer.imageryLayers.get(3)).toBe(old);
+    expect(ready.mock.calls).toEqual([[100]]);
+    await network.finish(1);
+    expect(radarProvider(viewer,3).url).toContain('/200.png');
+    expect(viewer.imageryLayers.get(3).alpha).toBe(.7);
+    expect(old.isDestroyed()).toBe(true);
+    expect(oldProvider.errorEvent.numberOfListeners).toBe(0);
+    expect(ready.mock.calls).toEqual([[100],[200]]);
+    expect(Math.max(...counts)).toBe(4);
+    controller.destroy();controller.destroy();
+    expect([0,1,2].map(i=>viewer.imageryLayers.get(i))).toEqual(bases);
+    expect(viewer.imageryLayers.length).toBe(3);
+  });
+
+  it('reuses pending and displayed frames for opacity updates and delivers the latest callback',async()=>{
+    const viewer=setup(),network=downloads(),first=vi.fn(),latest=vi.fn();
+    const controller=createRadarLayerController(viewer as never);
+    controller.show(snapshot(100),.2,first,vi.fn());
+    controller.show(snapshot(100),1.5,latest,vi.fn());
+    expect(network.requests).toHaveLength(1);
+    await network.finish(0);
+    expect(first).not.toHaveBeenCalled();
+    expect(latest.mock.calls).toEqual([[100]]);
+    const layer=viewer.imageryLayers.get(0);
+    expect(layer.alpha).toBe(1);
+    controller.show(snapshot(100),-.5,latest,vi.fn());
+    expect(layer.alpha).toBe(0);
+    expect(viewer.imageryLayers.get(0)).toBe(layer);
+    expect(network.requests).toHaveLength(1);
+    controller.destroy();
+  });
+
+  it('ignores out-of-order loads and does not cache canceled downloads',async()=>{
+    const viewer=setup(),network=downloads(),oldReady=vi.fn(),ready=vi.fn();
+    const controller=createRadarLayerController(viewer as never);
+    controller.show(snapshot(100),.5,oldReady,vi.fn());
+    controller.show(snapshot(200),.5,ready,vi.fn());
+    await network.finish(1);await network.finish(0);
+    expect(oldReady).not.toHaveBeenCalled();
+    expect(ready.mock.calls).toEqual([[200]]);
+    expect(viewer.imageryLayers.length).toBe(1);
+    expect(radarProvider(viewer).url).toContain('/200.png');
+    controller.show(snapshot(100),.5,ready,vi.fn());
+    expect(network.requests).toHaveLength(3);
+    controller.destroy();await network.finish(2);
+    expect(viewer.imageryLayers.length).toBe(0);
+  });
+
+  it.each(['clear','destroy','viewer destroyed'])('invalidates pending completion on %s',async(action)=>{
+    const viewer=setup(),network=downloads(),ready=vi.fn(),error=vi.fn();
+    const controller=createRadarLayerController(viewer as never);
+    controller.show(snapshot(100),.5,ready,error);
+    if(action==='clear')controller.show(null,.5,ready,error);
+    else if(action==='destroy')controller.destroy();
+    else viewer.isDestroyed=()=>true;
+    await network.finish(0);
+    expect(viewer.imageryLayers.length).toBe(0);
+    expect(ready.mock.calls).toEqual(action==='clear'?[[null]]:[]);
+    expect(error).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it('clears visible imagery and signals null before a target load error',async()=>{
+    const viewer=setup(),network=downloads(),events:Array<number|string|null>=[];
+    const controller=createRadarLayerController(viewer as never);
+    const ready=(at:number|null)=>events.push(at),error=()=>events.push('error');
+    controller.show(snapshot(100),.5,ready,error);await network.finish(0);
+    const old=viewer.imageryLayers.get(0).imageryProvider;
+    controller.show(snapshot(200),.5,ready,error);
+    network.requests[1].reject(new Error('offline'));await flush();
+    expect(events).toEqual([100,null,'error']);
+    expect(viewer.imageryLayers.length).toBe(0);
+    expect(old.errorEvent.numberOfListeners).toBe(0);
+    controller.destroy();
+  });
+
+  it('removes failed providers from the cache and detaches all visible listeners',async()=>{
+    const viewer=setup(),network=downloads(),ready=vi.fn(),error=vi.fn();
+    const controller=createRadarLayerController(viewer as never);
+    controller.show(snapshot(100),.5,ready,error);await network.finish(0);
+    const loaded=viewer.imageryLayers.get(0).imageryProvider;
+    loaded.errorEvent.raiseEvent(new Error('tile failed'));
+    expect(viewer.imageryLayers.length).toBe(0);
+    expect(ready.mock.calls).toEqual([[100],[null]]);
+    expect(error).toHaveBeenCalledOnce();
+    expect(loaded.errorEvent.numberOfListeners).toBe(0);
+    controller.show(snapshot(100),.5,ready,error);
+    expect(network.requests).toHaveLength(2);
+    controller.destroy();network.requests[1].reject(new Error('late failure'));await flush();
+    expect(error).toHaveBeenCalledOnce();
+  });
+
+  it('switches cached frames synchronously and evicts the least recently used of thirteen decoded providers',async()=>{
+    const viewer=setup(),network=downloads(),ready=vi.fn(),error=vi.fn();
+    const controller=createRadarLayerController(viewer as never);
+    for(let i=0;i<13;i++) {
+      controller.show(snapshot(i*300),.5,ready,error);
+      await network.finish(i);
+    }
+    controller.show(snapshot(0),.3,ready,error);
+    expect(ready).toHaveBeenLastCalledWith(0);
+    expect(radarProvider(viewer).url).toContain('/0.png');
+    expect(viewer.imageryLayers.get(0).alpha).toBe(.3);
+    expect(network.requests).toHaveLength(13);
+    controller.show(snapshot(3900),.5,ready,error);await network.finish(13);
+    controller.show(snapshot(0),.5,ready,error);
+    expect(network.requests).toHaveLength(14);
+    controller.show(snapshot(300),.5,ready,error);
+    expect(network.requests).toHaveLength(15);
+    const current=viewer.imageryLayers.get(0).imageryProvider;
+    controller.show(null,.5,ready,error);
+    expect(current.errorEvent.numberOfListeners).toBe(0);
+    expect(viewer.imageryLayers.length).toBe(0);
+    expect(ready).toHaveBeenLastCalledWith(null);
+    controller.destroy();await network.finish(14);
   });
 });

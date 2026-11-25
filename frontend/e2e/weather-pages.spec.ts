@@ -18,9 +18,14 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
  await page.route('**/api/weather?*',route=>{
   const layer=new URL(route.request().url()).searchParams.get('layer');requests.push(layer!);
   const now=Date.now()/1000;
+  if(layer==='radar_history'){
+   const end=Math.floor(now/300)*300;
+   const frames=[0,6,12].map(i=>({url:`https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/history-${i}.png`,west:99.638609,south:-2.967382,east:108.290871,north:5.657912,observed_at:end-3600+i*300,expires_at:now+3600}));
+   return route.fulfill({json:{layer,state:'fresh',observed_at:end,fetched_at:now,retry_after:300,message:null,range_km:480,window_start:end-3600,window_end:end,expected_frames:13,frames}});
+  }
   return route.fulfill({json:{layer,state:'fresh',observed_at:now,fetched_at:now,retry_after:60,message:null,...(layer==='wind_regional'?{kind:'model',source:'Open-Meteo',height_m:10,coverage_km:500,points:[{id:'grid-1',lat:3,lon:103,speed_mps:4,from_deg:45},{id:'grid-2',lat:1.36,lon:103.98,speed_mps:1,from_deg:180}]}:{range_km:480,radar:{url:'https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/test.png',west:99.638609,south:-2.967382,east:108.290871,north:5.657912,observed_at:now,expires_at:now+3600}})}});
  });
- await page.route('https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/test.png',r=>r.fulfill({contentType:'image/png',headers:{'access-control-allow-origin':'*'},body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR4nGNg+M/gAMYwBgAtbAT9Ji/7WAAAAABJRU5ErkJggg==','base64')}));
+ await page.route('https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/*.png',r=>r.fulfill({contentType:'image/png',headers:{'access-control-allow-origin':'*'},body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR4nGNg+M/gAMYwBgAtbAT9Ji/7WAAAAABJRU5ErkJggg==','base64')}));
  await page.goto('./');
  await expect(page.locator('.cesium-widget canvas')).toBeVisible();
  const wind=page.getByRole('button',{name:'Wind',exact:true}),radar=page.getByRole('button',{name:'Rain radar',exact:true});
@@ -36,6 +41,20 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
  // Allow Cesium geometry and imagery to reach the render loop before checking errors.
  await page.waitForTimeout(2000);
  await expect(page.getByText(/Radar image unavailable/)).toHaveCount(0);
+ await page.getByRole('button',{name:'Past hour',exact:true}).click();
+ const replay=page.getByRole('region',{name:'Rain radar playback'});
+ await expect(replay).toBeVisible();await expect(replay.getByText('Aircraft remain live')).toBeVisible();
+ await expect(replay.getByText('3/13 frames available · missing frames omitted')).toBeVisible();
+ expect(requests.filter(x=>x==='radar_history')).toHaveLength(1);
+ await expect(page.getByRole('button',{name:'Play radar',exact:true})).toBeEnabled();
+ const slider=page.getByRole('slider',{name:'Rain radar time'});
+ await expect(slider).toHaveValue('0');
+ await page.getByRole('button',{name:'Play radar',exact:true}).click();
+ await expect(slider).toHaveValue('1',{timeout:10000});
+ await page.getByRole('button',{name:'Pause radar',exact:true}).click();
+ await slider.fill('2');await slider.press('ArrowLeft');await expect(slider).toHaveValue('1');
+ await expect(page.getByRole('button',{name:'Play radar',exact:true})).toBeEnabled();
+ expect(requests.filter(x=>x==='radar_history')).toHaveLength(1);
  await page.getByRole('button',{name:'Zoom in',exact:true}).click();
  await page.screenshot({path:`/tmp/changi-weather-${mobile?'mobile':'desktop'}.png`});
  if(mobile)await page.getByRole('button',{name:'Toggle aircraft list'}).click();
@@ -43,6 +62,10 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
  await page.getByRole('button',{name:'Follow aircraft',exact:true}).click();
  await expect(page.getByRole('region',{name:'3D aircraft follow'})).toBeVisible();
  await expect(wind).toBeVisible();await expect(radar).toBeVisible();
+ await expect(replay).toBeVisible();
+ await page.screenshot({path:`/tmp/changi-radar-follow-${mobile?'mobile':'desktop'}.png`});
+ await replay.getByRole('button',{name:'Return to Live',exact:true}).click();
+ await expect(replay).toHaveCount(0);
  await wind.click();await expect(wind).toHaveAttribute('aria-pressed','false');await expect(radar).toHaveAttribute('aria-pressed','true');
  await page.getByRole('button',{name:'Exit aircraft follow'}).click();
  if(mobile){
