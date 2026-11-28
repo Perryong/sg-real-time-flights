@@ -18,15 +18,18 @@ from datetime import datetime, timezone, timedelta
 import math
 from urllib.parse import urlsplit
 
-INTERVAL = {'wind': 60, 'radar': 300, 'wind_regional': 900, 'radar_wide': 300, 'radar_history': 300}
+INTERVAL = {'wind': 60, 'radar': 300, 'wind_regional': 900, 'radar_wide': 300, 'radar_history': 300, 'changi_outlook': 900}
 FRESH_AGE = {'wind': 600, 'radar': 900, 'wind_regional': 1800, 'radar_wide': 900, 'radar_history': 600}
 RADAR_HOST = 'dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com'
+OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast'
+SINGAPORE = timezone(timedelta(hours=8))
 URLS = {
     'speed': 'https://api-open.data.gov.sg/v2/real-time/api/wind-speed',
     'direction': 'https://api-open.data.gov.sg/v2/real-time/api/wind-direction',
     'radar': 'https://api-open.data.gov.sg/v2/real-time/api/weather-radar-images/70km',
     'radar_wide': 'https://api-open.data.gov.sg/v2/real-time/api/weather-radar-images/480km',
-    'wind_regional': 'https://api.open-meteo.com/v1/forecast',
+    'wind_regional': OPEN_METEO_URL,
+    'changi_outlook': OPEN_METEO_URL,
 }
 
 
@@ -34,6 +37,18 @@ URLS = {
 # clipped to the circle gives 49 fixed coordinates, conservatively 4,704
 # location calls/day at the shared 900-second cadence (including crashes).
 REGIONAL_CENTER = (1.3644, 103.9915)
+CHANGI_LOCATION = {'name': 'Changi Airport', 'lat': 1.3644, 'lon': 103.9915}
+OUTLOOK_CURRENT = {
+    'humidity_pct': ('relative_humidity_2m', '%', 0, 100),
+    'pressure_msl_hpa': ('pressure_msl', 'hPa', 850, 1100),
+}
+OUTLOOK_DAILY = {
+    'weather_code': ('weather_code', 'wmo code', 0, 99),
+    'low_c': ('temperature_2m_min', '°C', -100, 70),
+    'high_c': ('temperature_2m_max', '°C', -100, 70),
+}
+OUTLOOK_CODES = {0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77,
+                 80, 81, 82, 85, 86, 95, 96, 97, 99}
 
 
 def regional_grid():
@@ -80,6 +95,8 @@ def empty_layer_data(layer, now=None):
         return {'kind': 'model', 'source': 'Open-Meteo', 'height_m': 10, 'coverage_km': 500, 'points': []}
     if layer == 'radar_history':
         return {'range_km': 480, **history_window(now), 'frames': [], 'expected_frames': 13}
+    if layer == 'changi_outlook':
+        return {'source': 'Open-Meteo', 'location': CHANGI_LOCATION, 'current': dict.fromkeys(OUTLOOK_CURRENT), 'daily': []}
     return {'radar': None, **({'range_km': 480} if layer == 'radar_wide' else {})}
 
 
@@ -94,7 +111,7 @@ def radar_bounds(west, south, east, north, layer):
 
 
 def number(value, low, high):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not low <= value <= high:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
         raise ValueError('Invalid weather measurement')
     return float(value)
 
@@ -139,6 +156,9 @@ def validate_frame(frame, now):
         if frame['fetched_at'] is not None: number(frame['fetched_at'], 0, now+60)
         if layer == 'radar_history':
             validate_history(frame, now)
+            return
+        if layer == 'changi_outlook':
+            validate_outlook(frame)
             return
         if frame['state'] != 'unavailable' and (frame['observed_at'] is None or frame['fetched_at'] is None
                 or not frame['stations' if layer == 'wind' else 'points' if layer == 'wind_regional' else 'radar']):
@@ -191,10 +211,62 @@ def validate_history(frame, now):
     if frame['observed_at'] != last: raise ValueError('Radar history observation does not match frames')
 
 
+def outlook_dates(now):
+    today = datetime.fromtimestamp(now, SINGAPORE).date()
+    return [(today + timedelta(days=offset)).isoformat() for offset in range(1, 6)]
+
+
+def outlook_measurement(key, value, low, high):
+    value = number(value, low, high)
+    if key == 'weather_code':
+        if value not in OUTLOOK_CODES: raise ValueError('Unsupported weather code')
+        return int(value)
+    return value
+
+
+def validate_outlook(frame):
+    if frame['source'] != 'Open-Meteo' or frame['location'] != CHANGI_LOCATION: raise ValueError()
+    current, daily = frame['current'], frame['daily']
+    if not isinstance(current, dict) or current.keys() != OUTLOOK_CURRENT.keys() or not isinstance(daily, list):
+        raise ValueError()
+    if frame['fetched_at'] is None and (frame['state'] != 'unavailable' or frame['observed_at'] is not None or daily):
+        raise ValueError()
+    for key, (_, _, low, high) in OUTLOOK_CURRENT.items():
+        if current[key] is not None:
+            if frame['observed_at'] is None: raise ValueError()
+            outlook_measurement(key, current[key], low, high)
+    dates = set(outlook_dates(frame['fetched_at'])) if frame['fetched_at'] is not None else set()
+    for day in daily:
+        dates.remove(day['date'])
+        for key, (_, _, low, high) in OUTLOOK_DAILY.items():
+            if day[key] is not None: outlook_measurement(key, day[key], low, high)
+        if day['low_c'] is not None and day['high_c'] is not None and day['low_c'] > day['high_c']:
+            raise ValueError('Inverted forecast temperatures')
+
+
+def render_outlook(frame, now):
+    observed, fetched = frame['observed_at'], frame['fetched_at']
+    current_age = now - observed if observed is not None else math.inf
+    daily_age = now - fetched if fetched is not None else math.inf
+    if current_age > 3600:
+        frame['current'] = dict.fromkeys(OUTLOOK_CURRENT)
+    cached = {day['date']: day for day in frame['daily']} if daily_age <= 21600 else {}
+    frame['daily'] = [cached.get(day, {'date': day, **dict.fromkeys(OUTLOOK_DAILY)}) for day in outlook_dates(now)]
+    has_current = any(value is not None for value in frame['current'].values())
+    has_daily = any(day[key] is not None for day in frame['daily'] for key in OUTLOOK_DAILY)
+    if not has_current and not has_daily:
+        frame.update(state='unavailable', message=frame['message'] or 'Changi outlook is unavailable')
+    elif (has_current and current_age > 1800) or (has_daily and daily_age > 3600):
+        frame['state'] = 'stale'
+    return frame
+
+
 def render(frame, now):
     validate_frame(frame, now)
     result = deepcopy(frame)
     layer = result['layer']; observed = result['observed_at']
+    if layer == 'changi_outlook':
+        return render_outlook(result, now)
     if layer == 'radar_history':
         result['frames'] = [radar for radar in result['frames'] if radar['expires_at'] > now]
         fetched = result['fetched_at']
@@ -296,6 +368,59 @@ def normalize_regional_wind(payload, now):
     return render(result, now)
 
 
+def outlook_fields(fields, units, data, index=None):
+    result = dict.fromkeys(fields)
+    for key, (provider_key, expected_unit, low, high) in fields.items():
+        if units.get(provider_key) != expected_unit: continue
+        value = data.get(provider_key)
+        if index is not None:
+            if not isinstance(value, list) or index >= len(value): continue
+            value = value[index]
+        try:
+            result[key] = outlook_measurement(key, value, low, high)
+        except ValueError:
+            continue
+    return result
+
+
+def normalize_changi_outlook(payload, now):
+    if (not isinstance(payload, dict) or payload.get('error') or payload.get('timezone') != 'Asia/Singapore'
+            or payload.get('utc_offset_seconds') != 28800):
+        raise ValueError('Invalid Changi outlook timezone')
+    lat = number(payload.get('latitude'), -90, 90)
+    lon = number(payload.get('longitude'), -180, 180)
+    if distance_km(lat, lon, (CHANGI_LOCATION['lat'], CHANGI_LOCATION['lon'])) > 30:
+        raise ValueError('Model cell lies outside Changi')
+    result = envelope('changi_outlook', now)
+    current, units = payload.get('current'), payload.get('current_units')
+    if isinstance(current, dict) and isinstance(units, dict) and units.get('time') == 'iso8601':
+        raw_time = current.get('time')
+        try:
+            if not isinstance(raw_time, str) or 'T' not in raw_time: raise ValueError()
+            valid = datetime.fromisoformat(raw_time)
+            if valid.tzinfo is not None: raise ValueError()
+            result['observed_at'] = number(valid.replace(tzinfo=SINGAPORE).timestamp(), 0, now+60)
+            result['current'] = outlook_fields(OUTLOOK_CURRENT, units, current)
+        except ValueError:
+            pass
+    daily, units = payload.get('daily'), payload.get('daily_units')
+    if isinstance(daily, dict) and isinstance(units, dict) and units.get('time') == 'iso8601':
+        times = daily.get('time')
+        if isinstance(times, list):
+            # Keep the original array index even when another date is absent.
+            for day in outlook_dates(now):
+                if times.count(day) != 1: continue
+                fields = outlook_fields(OUTLOOK_DAILY, units, daily, times.index(day))
+                if fields['low_c'] is not None and fields['high_c'] is not None and fields['low_c'] > fields['high_c']:
+                    fields.update(low_c=None, high_c=None)
+                result['daily'].append({'date': day, **fields})
+    if not any(value is not None for value in result['current'].values()) and not any(
+            day[key] is not None for day in result['daily'] for key in OUTLOOK_DAILY):
+        raise ValueError('No usable Changi outlook fields')
+    result.update(state='fresh', fetched_at=now)
+    return result
+
+
 def normalize_radar(payload, now, layer='radar'):
     try:
         data = data_body(payload); bounds = data['boundaryBox']
@@ -377,7 +502,12 @@ if n > 20 then return {'limited', '60'} end
 local payload = redis.call('GET', KEYS[1] .. ':data') or ''
 if redis.call('EXISTS', KEYS[1] .. ':denied') == 1 then return {'cached', payload, '86400'} end
 local retry = tonumber(redis.call('GET', KEYS[1] .. ':retry') or '0')
-if retry > now then return {'cached', payload, tostring(retry-now)} end
+if retry > now then
+  if ARGV[6] == 'changi_outlook' and payload == '' and redis.call('EXISTS', KEYS[1] .. ':lease') == 1 then
+    return {'pending'}
+  end
+  return {'cached', payload, tostring(retry-now)}
+end
 local lease = redis.call('SET', KEYS[1] .. ':lease', ARGV[2], 'NX', 'EX', 35)
 if not lease then return {'cached', payload, '5'} end
 -- Reserve before provider I/O; an expired lease after a crash cannot repoll.
@@ -398,6 +528,10 @@ return 1
 
 class WeatherLimited(Exception):
     def __init__(self, retry_after=60): self.retry_after = retry_after
+
+
+class OutlookPending(Exception):
+    pass
 
 
 class WeatherUnavailable(Exception):
@@ -428,9 +562,10 @@ class WeatherCache(RedisCache):
         digest = hashlib.sha256((self.secret+viewer).encode()).hexdigest()[:24]
         result = await self.command('EVAL', CLAIM, 3, self.prefix, self.rate_prefix,
                                     self.rate_prefix + ':month:' + start.strftime('%Y-%m'),
-                                    digest, token, int(start.timestamp()), int(end.timestamp()), max(300, INTERVAL[self.layer]))
+                                    digest, token, int(start.timestamp()), int(end.timestamp()), max(300, INTERVAL[self.layer]), self.layer)
         if not isinstance(result, list) or not result: raise CacheUnavailable()
         if result[0] == 'limited': raise WeatherLimited(int(result[1]))
+        if result[0] == 'pending': raise OutlookPending()
         if result[0] not in ('refresh', 'cached') or len(result) != 3: raise CacheUnavailable()
         try:
             if len(result[1]) > 100_000: raise ValueError()
@@ -465,12 +600,16 @@ class WeatherFeed:
         self.cache, self.client, self.clock = cache, client, clock
 
     async def fetch(self, name, params=None):
-        key = os.getenv('DATAGOV_API_KEY', '') if name != 'wind_regional' else ''
+        key = os.getenv('DATAGOV_API_KEY', '') if URLS[name].startswith('https://api-open.data.gov.sg/') else ''
         if name == 'wind_regional':
             params = {'latitude': ','.join(str(p['lat']) for p in REGIONAL_GRID),
                       'longitude': ','.join(str(p['lon']) for p in REGIONAL_GRID),
                       'current': 'wind_speed_10m,wind_direction_10m', 'wind_speed_unit': 'ms',
                       'timeformat': 'unixtime', 'timezone': 'UTC', 'forecast_days': 1, 'cell_selection': 'nearest'}
+        elif name == 'changi_outlook':
+            params = {'latitude': CHANGI_LOCATION['lat'], 'longitude': CHANGI_LOCATION['lon'], 'timezone': 'Asia/Singapore',
+                      'current': ','.join(field[0] for field in OUTLOOK_CURRENT.values()),
+                      'daily': ','.join(field[0] for field in OUTLOOK_DAILY.values()), 'forecast_days': 6}
         try:
             response = await self.client.get(URLS[name], headers={'x-api-key': key} if key else {},
                                              params=params, timeout=8, follow_redirects=False)
@@ -507,11 +646,12 @@ class WeatherFeed:
                     frame = normalize_wind(speed, direction, self.clock())
                 elif layer == 'wind_regional':
                     frame = normalize_regional_wind(await self.fetch(layer), self.clock())
+                elif layer == 'changi_outlook':
+                    frame = normalize_changi_outlook(await self.fetch(layer), self.clock())
                 elif layer == 'radar_history':
                     now = self.clock()
                     window = history_window(now)
-                    singapore = timezone(timedelta(hours=8))
-                    days = dict.fromkeys(datetime.fromtimestamp(window[key], singapore).strftime('%Y-%m-%d')
+                    days = dict.fromkeys(datetime.fromtimestamp(window[key], SINGAPORE).strftime('%Y-%m-%d')
                                          for key in ('window_end', 'window_start'))
                     payloads = [await self.fetch('radar_wide', {'date': day}) for day in days]
                     frame = normalize_radar_history(payloads, now)
@@ -525,12 +665,15 @@ class WeatherFeed:
             if isinstance(error, ProviderFailure):
                 retry = max(retry, error.retry_after or 0)
                 denied, message = error.denied, error.message
-            frame = render(previous.get('frame') or envelope(layer, self.clock()), self.clock())
+            last = previous.get('frame') or envelope(layer, self.clock())
+            frame = dict(last) if layer == 'changi_outlook' else render(last, self.clock())
             if frame['state'] == 'fresh': frame['state'] = 'stale'
             frame['message'] = message
         frame['retry_after'] = retry
         if not await self.cache.publish(claim.token, {'frame': frame, 'failures': failures}, retry, denied):
             raise CacheUnavailable()
+        if layer == 'changi_outlook':
+            frame = render(frame, self.clock())
         if frame['state'] == 'unavailable': raise WeatherUnavailable(frame)
         return frame
 
@@ -543,7 +686,7 @@ async def weather(request: Request):
     layer = request.query_params.get('layer')
     headers = {'Cache-Control': 'no-store'}
     if layer not in INTERVAL or len(request.query_params.getlist('layer')) != 1 or any(k != 'layer' for k in request.query_params):
-        return JSONResponse({'error': 'Choose layer=wind, radar, wind_regional, radar_wide or radar_history'}, status_code=400, headers=headers)
+        return JSONResponse({'error': 'Choose layer=' + ', '.join(INTERVAL)}, status_code=400, headers=headers)
     viewer = request.headers.get('x-vercel-forwarded-for') if os.getenv('VERCEL') else request.client.host if request.client else 'unknown'
     async with httpx.AsyncClient(follow_redirects=False) as client:
         cache = WeatherCache(client, os.getenv('KV_REST_API_URL', os.getenv('UPSTASH_REDIS_REST_URL', '')),
@@ -552,6 +695,10 @@ async def weather(request: Request):
             frame = await WeatherFeed(cache, client).snapshot(viewer or 'unknown')
             return JSONResponse(frame, headers={**headers, 'X-Response-Time': str(time.time()),
                                                 'Vercel-CDN-Cache-Control': 'public, s-maxage=15'})
+        except OutlookPending:
+            frame = envelope(layer, time.time(), message='Loading the shared Changi outlook')
+            frame['retry_after'] = 15
+            return JSONResponse(frame, status_code=202, headers={**headers, 'Retry-After': '15'})
         except WeatherLimited as error:
             frame = envelope(layer, time.time(), message='Weather request allowance reached; retry later')
             frame['retry_after'] = error.retry_after
