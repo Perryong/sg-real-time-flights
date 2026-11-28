@@ -196,7 +196,19 @@ test('compact desktop keeps aircraft selectable with wind and outlook open', asy
     track.history = [track.latest];
   }
   await page.route('**/api/aircraft*', route => route.fulfill({json:frame}));
-  await page.route('**/api/weather?*', route => route.fulfill({status:503, json:{error:'Weather unavailable'}}));
+  const singaporeDay = Math.floor((now + 8 * 3600) / 86400);
+  await page.route('**/api/weather?*', route => {
+    const layer = new URL(route.request().url()).searchParams.get('layer');
+    const data = layer === 'wind_regional'
+      ? {kind:'model', height_m:10, coverage_km:500, points:regionalGrid()}
+      : {location:{name:'Changi Airport',lat:1.3644,lon:103.9915}, current:{humidity_pct:80,pressure_msl_hpa:1010},
+        daily:[1,2,3,4,5].map(offset => ({
+          date:new Date((singaporeDay + offset) * 86400000).toISOString().slice(0,10),
+          weather_code:3, low_c:24, high_c:31,
+        }))};
+    return route.fulfill({json:{layer, state:'fresh', source:'Open-Meteo', observed_at:now,
+      fetched_at:now, retry_after:900, message:null, ...data}});
+  });
   await page.goto('./');
   await page.getByRole('button', {name:'Wind', exact:true}).click();
   await page.getByRole('button', {name:'Changi outlook', exact:true}).click();
@@ -207,4 +219,10 @@ test('compact desktop keeps aircraft selectable with wind and outlook open', asy
     await expect(page.getByRole('region', {name:'Selected aircraft details'})).toContainText(callsign);
     await expect(outlook).toBeVisible();
   }
+  const lastDay = outlook.getByRole('listitem').last();
+  await expect(lastDay).toContainText('Overcast');
+  await expect(lastDay).not.toBeInViewport();
+  await outlook.getByRole('heading', {name:'Changi Airport, Singapore'}).hover();
+  await page.mouse.wheel(0, 650);
+  await expect(lastDay).toBeInViewport({ratio:0.9, timeout:3000});
 });
