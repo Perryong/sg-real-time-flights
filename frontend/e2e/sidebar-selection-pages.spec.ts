@@ -66,10 +66,13 @@ for (const [name, width, height] of [
       await useDemo(page);
       const details = page.getByRole("region", { name: "Selected aircraft details" });
       const traffic = page.getByRole("region", { name: "Aircraft list" });
+      const panelControls = page.getByRole("group", { name: "Map panels" });
       const toggleList = page.getByRole("button", { name: "Toggle aircraft list" });
+      const showTraffic = mobile ? panelControls.getByRole("button", { name: "Traffic", exact: true }) : toggleList;
+      const collapseTraffic = mobile ? panelControls.getByRole("button", { name: "Collapse panels" }) : toggleList;
       const row = (callsign: string) => traffic.getByRole("button", { name: "Select " + callsign, exact: true });
       const openList = async () => {
-        if (!(await traffic.isVisible())) await tapOrClick(toggleList, mobile);
+        if (!(await traffic.isVisible())) await tapOrClick(showTraffic, mobile);
         await expect(traffic).toBeVisible();
       };
       const selectedMarker = async () => {
@@ -87,7 +90,7 @@ for (const [name, width, height] of [
       await expect(timeline).toHaveAttribute("min", "1700000000");
       await tapOrClick(page.getByRole("button", { name: "Pause playback" }), mobile);
       await expect(page.locator(canvasSelector)).toBeVisible();
-      if (await traffic.isVisible()) await tapOrClick(toggleList, mobile);
+      if (await traffic.isVisible()) await tapOrClick(collapseTraffic, mobile);
       await expect.poll(async () => (await visibleMarkers(page)).amber.length).toBeGreaterThan(8);
       for (let i = 0; i < 11; i++) await tapOrClick(page.getByRole("button", { name: "Zoom in" }), mobile);
       await expect.poll(async () => (await visibleMarkers(page)).amber.length).toBe(0);
@@ -111,7 +114,7 @@ for (const [name, width, height] of [
         await expect(traffic.locator(".flight-row.selected")).toHaveCount(1);
       }
 
-      if (mobile) await tapOrClick(toggleList, mobile);
+      if (mobile) await tapOrClick(collapseTraffic, mobile);
       const lastMarker = await selectedMarker();
       await pan(page, mobile, lastMarker);
       if (mobile) await pan(page, mobile, lastMarker);

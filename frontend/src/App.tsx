@@ -1,6 +1,6 @@
 import { COVERAGE_RADIUS_KM } from "./data/coverage";
 import { airportUrl, assetUrl, liveAvailable, httpFeedUrl } from "./data/hosting";
-import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, lazy, Suspense } from "react";
 import {
   Radar,
   MapPin,
@@ -48,6 +48,14 @@ import {weatherCurrent} from './data/weather';
 import {useRadarPlayback} from './hooks/useRadarPlayback';
 import RadarReplayControls from './components/RadarReplayControls';
 
+type CompactPanel = "traffic" | "weather" | "collapsed";
+const compactPanels = window.matchMedia("(max-width: 900px), (max-height: 500px)");
+function subscribeToCompactPanels(onChange: () => void) {
+  compactPanels.addEventListener("change", onChange);
+  return () => compactPanels.removeEventListener("change", onChange);
+}
+const getCompactPanels = () => compactPanels.matches;
+
 export default function App() {
   const [region,setRegion]=useState<RegionId>("singapore");
   const feed = useTraffic(region);
@@ -60,6 +68,26 @@ export default function App() {
   const liveRadarFrame=radar.phase==='ready'&&radar.data.layer==='radar_wide'&&weatherCurrent(radar.data,weatherNow)?radar.data.radar:null;
   const playback=useRadarPlayback(weather.radar&&!weatherUnavailable,liveRadarFrame,weatherNow);
   const activeRegion=regions[feed.mode==='live'?region:'singapore'];
+  const compact = useSyncExternalStore(subscribeToCompactPanels, getCompactPanels);
+  const [activePanel, setActivePanel] = useState<CompactPanel>(() => compact ? (liveAvailable ? "weather" : "collapsed") : "traffic");
+  const [wideSidebar, setWideSidebar] = useState(true);
+  const sidebar = compact ? activePanel === "traffic" : wideSidebar;
+  const setSidebar = (open: boolean) => {
+    if (compact) setActivePanel(open ? "traffic" : "collapsed");
+    else {
+      setWideSidebar(open);
+      setActivePanel(panel => open ? "traffic" : panel === "traffic" ? "weather" : panel);
+    }
+  };
+  const trafficTab = useRef<HTMLButtonElement>(null);
+  const weatherTab = useRef<HTMLButtonElement>(null);
+  const compactTrigger = useRef<HTMLButtonElement>(null);
+  const closeCompactPanel = () => {
+    setActivePanel("collapsed");
+    const tab = activePanel === "weather" ? weatherTab.current : trafficTab.current;
+    (compactTrigger.current?.isConnected ? compactTrigger.current : tab)?.focus();
+    compactTrigger.current = null;
+  };
   const [followCamera,setFollowCamera]=useState({...defaultFollowCamera});
   const [followStyle,setFollowStyle]=useState<FollowStyle>("satellite");
   const [airport, setAirport] = useState<Airport | null>(null),
@@ -73,7 +101,6 @@ export default function App() {
     [geometry, setGeometry] = useState(true),
     [layers, setLayers] = useState(false),
     [sources, setSources] = useState(false),
-    [sidebar, setSidebar] = useState(() => window.innerWidth >= 800),
     [mapReady, setMapReady] = useState(false),
     [mapError, setMapError] = useState<string | null>(null),
     [inView, setInView] = useState(0),
@@ -122,33 +149,35 @@ export default function App() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (compact && activePanel !== "collapsed" && !placing && !follow && !sources && !layers) closeCompactPanel();
         setPlacing(false);
         setFollow(false);
         setSources(false);
         setLayers(false);
       }
-      if (e.key === "/" && !(e.target instanceof HTMLInputElement)) {
+      if (e.key === "/" && !follow && !sources && e.target instanceof Element && !e.target.closest("input, select, dialog[open]")) {
         e.preventDefault();
-        document
-          .querySelector<HTMLInputElement>(
-            'input[aria-label="Search aircraft"]',
-          )
-          ?.focus();
+        compactTrigger.current = null;
+        setActivePanel("traffic");
+        if (!compact) setWideSidebar(true);
+        setObserverOpen(false);
+        setLayers(false);
+        requestAnimationFrame(() => document.querySelector<HTMLInputElement>('input[aria-label="Search aircraft"]')?.focus());
       }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, []);
+  }, [compact, activePanel, placing, follow, sources, layers]);
   const choose = (id: string) => {
     setSelected(id);
     setFollow(false);
     if(view==='sky')setView('overhead');
-    if (!observerOpen && matchMedia("(max-width: 800px)").matches) setSidebar(false);
+    if (compact && activePanel !== "collapsed" && !(sidebar && observerOpen)) closeCompactPanel();
   };
   const chooseFromTraffic = (id: string) => {
     choose(id);
     setPlacing(false);
-    if (matchMedia("(max-width: 800px)").matches) setLayers(false);
+    if (compact) setLayers(false);
     setAction((previous) => ({ kind: "locate", id, nonce: previous.nonce + 1 }));
   };
   const switchMode = (mode: Mode) => {
@@ -181,9 +210,12 @@ export default function App() {
     upstream?.newest_position_time != null
       ? Math.max(0, Math.floor(feed.now - upstream.newest_position_time))
       : null;
+  const replay = <RadarReplayControls playback={playback} windValidAt={regionalWind?.observed_at??null}/>;
+  const inlineReplay = compact && !follow;
+  const showPastRain = activePanel !== "weather" && playback.showHistoryBanner;
   return (
     <div
-      className={`app ${night ? "night" : "day"} ${sidebar ? "sidebar-open" : "sidebar-closed"} ${follow?"following":""}`}
+      className={`app ${night ? "night" : "day"} ${sidebar ? "sidebar-open" : "sidebar-closed"} ${compact ? "map-compact" : ""} ${follow?"following":""}`}
     >
       <header className="topbar">
         <a className="brand" href={assetUrl("")} aria-label="Changi Observatory home">
@@ -264,14 +296,20 @@ export default function App() {
           />
         </Suspense>
         <div className="map-shade" />
-        <RadarReplayControls playback={playback} windValidAt={regionalWind?.observed_at??null}/>
-        <WeatherControls preferences={weather} onChange={setWeather} wind={wind} radar={radar} unavailable={weatherUnavailable} now={weatherNow} radarError={playback.imageError} playback={playback}/>
+        {!inlineReplay && replay}
         {!follow&&<select className="mobile-region-picker" aria-label="Map region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl} onChange={e=>{setSelected(null);setFollow(false);setObserverOpen(false);setPlacing(false);setView('overhead');setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name}</option>)}</select>}
         <nav className="rail" aria-label="Primary navigation">
           <button
             className={`rail-button ${sidebar && !observerOpen ? "active" : ""}`}
             aria-label="Toggle aircraft list"
-            onClick={() => {setObserverOpen(false);setSidebar(observerOpen?true:!sidebar)}}
+            onClick={(event) => {
+              if (compact && sidebar && !observerOpen) closeCompactPanel();
+              else {
+                if (compact) compactTrigger.current = event.currentTarget;
+                setSidebar(observerOpen || !sidebar);
+              }
+              setObserverOpen(false);
+            }}
           >
             <Plane size={21} />
             <span>Traffic</span>
@@ -295,7 +333,7 @@ export default function App() {
             <Layers3 size={20} />
             <span>Layers</span>
           </button>
-          <button className={`rail-button ${observerOpen?'active':''}`} aria-label="My location" onClick={()=>{setRegion("singapore");setSelected(null);setFollow(false);setObserverOpen(true);setSidebar(true)}}><MapPin size={20}/><span>My spot</span></button>
+          <button className={`rail-button ${sidebar && observerOpen?'active':''}`} aria-label="My location" onClick={event=>{if(compact)compactTrigger.current=event.currentTarget;setRegion("singapore");setSelected(null);setFollow(false);setObserverOpen(true);setSidebar(true)}}><MapPin size={20}/><span>My spot</span></button>
           <div className="rail-bottom">
             <button
               className="rail-button"
@@ -308,14 +346,62 @@ export default function App() {
             <span className="rail-coordinate">1.36° N</span>
           </div>
         </nav>
-        <div className="left-panel-wrap">
-          {sidebar && observerOpen && <ObserverPanel pin={observer} placing={placing} sky={view==='sky'} aim={skyAim} tracks={tracks} now={feed.now} mode={feed.mode} mapReady={mapReady}
-            onPin={placePin} onPlace={()=>{setPlacing(true);setSidebar(false);camera('place')}} onCancel={()=>setPlacing(false)}
-            onRemove={()=>{setObserver(null);setPlacing(false);if(view==='sky')setView('overhead')}} onCenter={()=>camera('pin')}
-            onSky={()=>{setFollow(false);setView(view==='sky'?'overhead':'sky')}} onAim={setSkyAim}
-            onLook={track=>{if(!observer)return;const target=relativeAircraft(observer,track.latest);if(target.elevation===null)return;choose(track.id);setSkyAim({heading:target.bearing,pitch:target.elevation});setView('sky')}}/>}
-          {sidebar && !observerOpen && (
+        <div
+          className="map-panel-drawer"
+          data-panel={activePanel}
+          onFocusCapture={event => {
+            if (!compact && !follow) {
+              setActivePanel(event.target.closest(".weather-controls") ? "weather" : "traffic");
+            }
+          }}
+        >
+          {compact && !follow && (
+            <div className="map-panel-switcher" role="group" aria-label="Map panels">
+              <button
+                ref={trafficTab}
+                type="button"
+                aria-controls="traffic-map-panel"
+                aria-pressed={sidebar && !observerOpen}
+                onClick={(event) => {
+                  compactTrigger.current = event.currentTarget;
+                  setObserverOpen(false);
+                  setLayers(false);
+                  setActivePanel("traffic");
+                }}
+              >
+                Traffic
+              </button>
+              <button
+                ref={weatherTab}
+                type="button"
+                aria-label="Weather"
+                aria-controls="weather-map-panel"
+                aria-pressed={activePanel === "weather"}
+                aria-describedby={showPastRain ? "past-rain-status" : undefined}
+                onClick={(event) => {
+                  compactTrigger.current = event.currentTarget;
+                  setLayers(false);
+                  setActivePanel("weather");
+                }}
+              >
+                Weather
+                {showPastRain && <span id="past-rain-status" className="weather-panel-status">Past rain</span>}
+              </button>
+              {activePanel !== "collapsed" && (
+                <button type="button" className="collapse-drawer" aria-label="Collapse panels" onClick={closeCompactPanel}>
+                  <ChevronDown size={20} />
+                </button>
+              )}
+            </div>
+          )}
+          <div id="traffic-map-panel" className="left-panel-wrap">
+            {sidebar && observerOpen && <ObserverPanel pin={observer} placing={placing} sky={view==='sky'} aim={skyAim} tracks={tracks} now={feed.now} mode={feed.mode} mapReady={mapReady}
+              onPin={placePin} onPlace={()=>{setPlacing(true);setSidebar(false);camera('place')}} onCancel={()=>setPlacing(false)}
+              onRemove={()=>{setObserver(null);setPlacing(false);if(view==='sky')setView('overhead')}} onCenter={()=>camera('pin')}
+              onSky={()=>{setFollow(false);setView(view==='sky'?'overhead':'sky')}} onAim={setSkyAim}
+              onLook={track=>{if(!observer)return;const target=relativeAircraft(observer,track.latest);if(target.elevation===null)return;choose(track.id);setSkyAim({heading:target.bearing,pitch:target.elevation});setView('sky')}}/>}
             <TrafficList
+              hidden={!sidebar || observerOpen || follow}
               radius={activeRegion.radius}
               regionName={activeRegion.name}
               isChangi={feed.mode!=='live'||region==='singapore'}
@@ -329,21 +415,34 @@ export default function App() {
               setQuery={setQuery}
               filter={filter}
               setFilter={setFilter}
+              compact={compact}
               onDemo={() => switchMode("simulated")}
               unavailable={feed.mode === "live" && unavailable}
             />
-          )}
-          <button
-            className="collapse-panel icon-button"
-            aria-label={sidebar ? "Hide aircraft panel" : "Show aircraft panel"}
-            onClick={() => setSidebar(!sidebar)}
-          >
-            {sidebar ? (
-              <PanelLeftClose size={17} />
-            ) : (
-              <PanelLeftOpen size={17} />
+            {!compact && (
+              <button
+                className="collapse-panel icon-button"
+                aria-label={sidebar ? "Hide aircraft panel" : "Show aircraft panel"}
+                onClick={() => setSidebar(!sidebar)}
+              >
+                {sidebar ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+              </button>
             )}
-          </button>
+          </div>
+          <WeatherControls
+            id="weather-map-panel"
+            hidden={compact && !follow && activePanel !== "weather"}
+            compact={compact}
+            preferences={weather}
+            onChange={setWeather}
+            wind={wind}
+            radar={radar}
+            unavailable={weatherUnavailable}
+            now={weatherNow}
+            radarError={playback.imageError}
+            playback={playback}
+            replayControls={inlineReplay ? replay : undefined}
+          />
         </div>
         <div className="map-topline">
           <div className="map-breadcrumb">

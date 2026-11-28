@@ -61,33 +61,17 @@ function locateAircraft(viewer: Viewer, position: Cartesian3) {
   );
   if (projected && globe.isPointVisible(position) && markerFits(bounds.left + projected.x, bounds.top + projected.y)) return;
 
-  const workspace = canvas.closest(".workspace");
-  const panel = (selector: string) => workspace?.querySelector(selector)?.getBoundingClientRect();
-  const details = panel(".details-panel");
-  const narrow = matchMedia("(max-width: 800px)").matches;
-  const left = narrow ? bounds.left : panel(".traffic-panel")?.right ?? bounds.left;
-  let right = narrow ? panel(".map-controls")?.left ?? bounds.right : details?.left ?? bounds.right;
-  const bottom = narrow ? details?.top ?? bounds.bottom : bounds.bottom;
-  const weather = narrow ? panel(".weather-controls") : undefined;
-  const top = Math.min(weather?.bottom ?? bounds.top, bottom - 60);
-  // If the marker cannot fit below Weather, place it to the left of Weather.
-  if (weather && top < weather.bottom) right = Math.min(right, weather.left);
-  const focus = new Cartesian2((left + right) / 2, (top + bottom) / 2);
-  if (!markerFits(focus.x, focus.y)) {
-    // The open outlook and radar replay can cover the middle of the map.
-    const fractions = [0.5, 0.25, 0.75, 0.125, 0.875];
-    for (const row of fractions) {
-      const y = top + row * (bottom - top);
-      const x = fractions.map(column => left + column * (right - left)).find(x => markerFits(x, y));
-      if (x !== undefined) {
-        focus.x = x;
-        focus.y = y;
-        break;
-      }
+  const centerFirstFractions = [0.5, 0.375, 0.625, 0.25, 0.75, 0.125, 0.875, 0.0625, 0.9375];
+  const focus = new Cartesian2(bounds.width / 2, bounds.height / 2);
+  for (const row of centerFirstFractions) {
+    const y = row * bounds.height;
+    const column = centerFirstFractions.find(f => markerFits(bounds.left + f * bounds.width, bounds.top + y));
+    if (column !== undefined) {
+      focus.x = column * bounds.width;
+      focus.y = y;
+      break;
     }
   }
-  focus.x -= bounds.left;
-  focus.y -= bounds.top;
 
   const pitch = Math.min(camera.pitch, CMath.toRadians(-35));
   const altitude = Cartographic.fromCartesian(position).height;
@@ -341,6 +325,7 @@ export default function MapScene(props: Props) {
           if (metrics.failed) return;
           const now = performance.now();
           metrics.lastRender = now;
+          metrics.cameraHeight = viewer.camera.positionCartographic.height;
           if (metrics.frames.length < 60000) metrics.frames.push(now);
           metrics.aircraftCount = layer.current?.entities.size ?? 0;
           const frame = layer.current?.followFrame;

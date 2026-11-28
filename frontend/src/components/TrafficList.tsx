@@ -14,6 +14,8 @@ import {changiIntent,intentLabel,routeFor} from "../data/routes";
 import {OfficialBoards} from "./RouteDetails";
 import { freshness } from "../data/freshness";
 interface Props {
+  compact?: boolean;
+  hidden?: boolean;
   regionName?:string;
   isChangi?:boolean;
   radius?:number;
@@ -32,6 +34,7 @@ interface Props {
 }
 export default function TrafficList(p: Props) {
   const [direction,setDirection]=useState("all");
+  if (p.hidden) return null;
   const filtered = p.tracks.filter(
     (t) =>
       (p.isChangi===false || p.mode !== "live" || direction === "all" || changiIntent(t.latest,p.now) === direction) &&
@@ -40,20 +43,7 @@ export default function TrafficList(p: Props) {
         .toLowerCase()
         .includes(p.query.toLowerCase()),
   );
-  return (
-    <section className="traffic-panel panel" aria-label="Aircraft list">
-      <div className="traffic-title">
-        <div>
-          <span className="eyebrow">{(p.regionName??"Singapore").toUpperCase()} AIRSPACE</span>
-          <h1>
-            {p.isChangi===false?p.regionName+" airspace":"Changi Observatory"}<span>↗</span>
-          </h1>
-        </div>
-        <span className="airport-code">{p.isChangi===false?"LIVE":"SIN"}</span>
-      </div>
-      <div className="region-line">
-        <span className="tiny-dot" /> {p.isChangi===false?"Regional coverage · not worldwide":"WSSS · Singapore Changi International"}
-      </div>
+  const summary = (
       <div className="summary-grid">
         <div>
           <strong>{p.tracks.length.toString().padStart(2, "0")}</strong>
@@ -69,38 +59,63 @@ export default function TrafficList(p: Props) {
           <span>AIRBORNE</span>
         </div>
       </div>
-      <label className="panel-search">
-        <Search size={15} />
-        <input
-          value={p.query}
-          onChange={(e) => p.setQuery(e.target.value)}
-          placeholder="Find callsign or aircraft…"
-          aria-label="Search aircraft"
-        />
-        <kbd>/</kbd>
-      </label>
-      <div className="tabs" aria-label="Traffic filter">
-        {["all", "airborne"].map((f) => (
-          <button
-            key={f}
-            className={p.filter === f ? "active" : ""}
-            onClick={() => p.setFilter(f)}
-          >
-            {f === "all" ? "All aircraft" : f[0].toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+  );
+  return (
+    <section className="traffic-panel panel" aria-label="Aircraft list">
+      <div className="traffic-title">
+        <div>
+          <span className="eyebrow">{(p.regionName??"Singapore").toUpperCase()} AIRSPACE</span>
+          <h1>
+            {p.isChangi===false?p.regionName+" airspace":"Changi Observatory"}<span>↗</span>
+          </h1>
+        </div>
+        <span className="airport-code">{p.isChangi===false?"LIVE":"SIN"}</span>
       </div>
-      {p.mode === "live" && p.isChangi!==false && <div className="direction-controls">
-        <label>Changi direction
-          <select aria-label="Changi direction" value={direction} onChange={e=>setDirection(e.target.value)}>
-            <option value="all">All directions</option>
-            <option value="inbound">Inbound to SIN (likely)</option>
-            <option value="outbound">Outbound from SIN (likely)</option>
-            <option value="unknown">Unknown / other</option>
-          </select>
+      <div className="region-line">
+        <span className="tiny-dot" /> {p.isChangi===false?"Regional coverage · not worldwide":"WSSS · Singapore Changi International"}
+      </div>
+      {!p.compact && summary}
+      <div className="traffic-tools">
+        <label className="panel-search">
+          <Search size={15} />
+          <input
+            value={p.query}
+            onChange={(e) => p.setQuery(e.target.value)}
+            placeholder={p.compact ? "Find aircraft" : "Find callsign or aircraft…"}
+            aria-label="Search aircraft"
+          />
+          <kbd>/</kbd>
         </label>
-        <OfficialBoards />
-      </div>}
+        <details className="flight-filters" open={!p.compact}>
+          <summary>Flight filters</summary>
+          <div className="flight-filter-options">
+            {p.compact && summary}
+            <div className="tabs" aria-label="Traffic filter">
+              {[["all", "All aircraft"], ["airborne", "Airborne"]].map(([filter, label]) => (
+                <button
+                  key={filter}
+                  className={p.filter === filter ? "active" : ""}
+                  aria-pressed={p.filter === filter}
+                  onClick={() => p.setFilter(filter)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {p.mode === "live" && p.isChangi !== false && <div className="direction-controls">
+              <label>Changi direction
+                <select aria-label="Changi direction" value={direction} onChange={e => setDirection(e.target.value)}>
+                  <option value="all">All directions</option>
+                  <option value="inbound">Inbound to SIN (likely)</option>
+                  <option value="outbound">Outbound from SIN (likely)</option>
+                  <option value="unknown">Unknown / other</option>
+                </select>
+              </label>
+              <OfficialBoards />
+            </div>}
+          </div>
+        </details>
+      </div>
       <div className="list-caption">
         <span>{filtered.length} AIRCRAFT</span>
         <span>ALTITUDE / SPEED</span>

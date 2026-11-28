@@ -171,7 +171,7 @@ test("mobile controls stay inside viewport and selection opens readable details"
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.getByRole("button", { name: "Demo", exact: true }).click();
-  await page.getByRole("button", { name: "Toggle aircraft list" }).click();
+  await page.getByRole("group", { name: "Map panels" }).getByRole("button", { name: "Traffic", exact: true }).click();
   await page.getByRole("button", { name: "Select SYN 101" }).click();
   const panel = page.getByRole("region", { name: "Selected aircraft details" });
   await expect(panel).toBeVisible();
@@ -236,6 +236,7 @@ test('historical routes filter likely Changi flights and explain evidence in 3D'
   });
   await page.routeWebSocket('**/ws/aircraft',ws=>ws.send(JSON.stringify(frame)));
   await page.goto('/');
+  const filters = page.getByText('Flight filters', {exact:true});
   await page.getByLabel('Changi direction').selectOption('inbound');
   await expect(page.getByRole('button',{name:'Select OUTBOUND'})).toHaveCount(0);
   await page.getByRole('button',{name:'Select INBOUND'}).click();
@@ -247,10 +248,17 @@ test('historical routes filter likely Changi flights and explain evidence in 3D'
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await expect(page.getByRole('button',{name:'2D',exact:true})).toBeVisible();
   await page.setViewportSize({width:375,height:667});
+  const traffic = page.getByRole('region', {name:'Aircraft list'});
+  const trafficButton = page.getByRole('group', {name:'Map panels'}).getByRole('button', {name:'Traffic', exact:true});
+  await trafficButton.click();
+  if (!(await page.getByLabel('Changi direction').isVisible())) await filters.click();
   await page.getByLabel('Changi direction').selectOption('outbound');
   await page.getByRole('button',{name:'Select OUTBOUND'}).click();
   await expect(details.getByText('SIN → KUL',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Close aircraft details'}).click();
   await page.getByRole('button',{name:'Demo',exact:true}).click();
+  await trafficButton.click();
+  await expect(traffic).toBeVisible();
+  if (!(await page.getByRole('button', {name:'Airborne', exact:true}).isVisible())) await filters.click();
   await expect(page.getByLabel('Changi direction')).toHaveCount(0);
 });

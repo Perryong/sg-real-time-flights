@@ -6,6 +6,7 @@ export interface SceneMetrics {
   lastRender: number;
   aircraftCount: number;
   visibleCount: number;
+  cameraHeight?: number;
   followOffset?: { east: number; north: number; up: number };
 }
 declare global {

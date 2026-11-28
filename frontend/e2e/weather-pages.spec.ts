@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect,type Locator,type Page} from '@playwright/test';
 import fs from 'node:fs';
 import {visibleMarkers} from './visibleMarkers';
 function regionalGrid() {
@@ -15,11 +15,7 @@ function regionalGrid() {
   return points;
 }
 
-for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mobile?'mobile':'desktop'}`,async({page})=>{
- if(mobile)await page.setViewportSize({width:390,height:844});
- await page.addInitScript(()=>{window.__changiBenchmark={frames:[],ready:false,failed:false,lastRender:0,aircraftCount:0,visibleCount:0}});
- await page.emulateMedia({reducedMotion:mobile?'reduce':'no-preference'});
- const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+async function useLiveWeather(page: Page, withGroundTraffic = false) {
  const fixture=JSON.parse(fs.readFileSync('../tests/fixtures/scenarios/changi-demo.json','utf8'));
  await page.route('**/api/aircraft*',route=>{
   const now=Date.now()/1000,frame=structuredClone(fixture.frames[0]);
@@ -27,12 +23,31 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
   Object.assign(frame.status,{mode:'live',upstream_state:'healthy',movements:null,last_success:now});
   const t=frame.tracks[0];t.id='live:icao24:abc123';
   Object.assign(t.latest,{id:t.id,mode:'live',callsign:'WEATHER TEST',lat:1.36,lon:103.95,ground:false,alt_geom_m:1000,position_time:now,provider_time:now,receipt_time:now});
-  t.history=[t.latest];frame.tracks=[t];return route.fulfill({json:frame});
+  t.history=[t.latest];frame.tracks=[t];
+  if (withGroundTraffic) {
+   const ground = structuredClone(t);
+   ground.id = 'live:icao24:abc124';
+   Object.assign(ground.latest, {id:ground.id, callsign:'WEATHER GROUND', ground:true, lat:1.3644, lon:103.9915});
+   ground.history = [ground.latest];
+   frame.tracks.push(ground);
+  }
+  return route.fulfill({json:frame});
  });
  const requests:string[]=[];
  await page.route('**/api/weather?*',route=>{
   const layer=new URL(route.request().url()).searchParams.get('layer');requests.push(layer!);
   const now=Date.now()/1000;
+  if (layer === 'changi_outlook') {
+   const singaporeDay = Math.floor((now + 8 * 3600) / 86400);
+   return route.fulfill({json:{
+    layer, state:'fresh', observed_at:now, fetched_at:now, retry_after:300, message:null, source:'Open-Meteo',
+    location:{name:'Changi Airport',lat:1.3644,lon:103.9915}, current:{humidity_pct:80,pressure_msl_hpa:1010},
+    daily:[1,2,3,4,5].map(offset => ({
+     date:new Date((singaporeDay + offset) * 86400000).toISOString().slice(0,10),
+     weather_code:3, low_c:24, high_c:31,
+    })),
+   }});
+  }
   if(layer==='radar_history'){
    const end=Math.floor(now/300)*300;
    const frames=[0,6,12].map(i=>({url:`https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/history-${i}.png`,west:99.638609,south:-2.967382,east:108.290871,north:5.657912,observed_at:end-3600+i*300,expires_at:now+3600}));
@@ -41,6 +56,226 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
   return route.fulfill({json:{layer,state:'fresh',observed_at:now,fetched_at:now,retry_after:60,message:null,...(layer==='wind_regional'?{kind:'model',source:'Open-Meteo',height_m:10,coverage_km:500,points:regionalGrid()}:{range_km:480,radar:{url:'https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/test.png',west:99.638609,south:-2.967382,east:108.290871,north:5.657912,observed_at:now,expires_at:now+3600}})}});
  });
  await page.route('https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/*.png',r=>r.fulfill({contentType:'image/png',headers:{'access-control-allow-origin':'*'},body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR4nGNg+M/gAMYwBgAtbAT9Ji/7WAAAAABJRU5ErkJggg==','base64')}));
+ return requests;
+}
+
+async function expectOnScreen(control: Locator, viewport: {width: number; height: number}) {
+ const box = await control.boundingBox();
+ expect(box).not.toBeNull();
+ expect(box!.x).toBeGreaterThanOrEqual(0);
+ expect(box!.y).toBeGreaterThanOrEqual(0);
+ expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+ expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+ expect(await control.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+ return box!;
+}
+
+async function highlightedMarker(page: Page) {
+ const {lime} = await visibleMarkers(page);
+ if (lime.length <= 8) return null;
+ return {
+  x:lime.reduce((sum, point) => sum + point.x, 0) / lime.length,
+  y:lime.reduce((sum, point) => sum + point.y, 0) / lime.length,
+ };
+}
+
+test.describe('responsive map panels', () => {
+ test.use({viewport:{width:320,height:568}, hasTouch:true, reducedMotion:'reduce'});
+
+ test('closing the outlook preserves the next keyboard focus', async ({page}) => {
+  await useLiveWeather(page);
+  await page.goto('./');
+  const outlook = page.getByRole('button', {name:'Changi outlook',exact:true});
+  await outlook.click();
+  const close = page.getByRole('button', {name:'Close Changi outlook'});
+  const collapse = page.getByRole('button', {name:'Collapse panels'});
+  await close.evaluate(async el => {
+   el.click();
+   await Promise.resolve();
+   document.querySelector<HTMLButtonElement>('[aria-label="Collapse panels"]')!.focus();
+   await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  await expect(collapse).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('region', {name:'Weather layers'})).toBeHidden();
+ });
+
+ test('keeps traffic and weather usable across the same live session', async ({page}, testInfo) => {
+  test.setTimeout(120000);
+  await page.addInitScript(() => {
+   window.__changiBenchmark = {frames:[], ready:false, failed:false, lastRender:0, aircraftCount:0, visibleCount:0};
+  });
+  const requests = await useLiveWeather(page, true);
+  await page.goto('./');
+  await expect(page.locator('.cesium-widget canvas')).toBeVisible();
+
+  const controls = page.getByRole('group', {name:'Map panels'});
+  const trafficButton = controls.getByRole('button', {name:'Traffic',exact:true});
+  const weatherButton = controls.getByRole('button', {name:'Weather',exact:true});
+  const collapse = controls.getByRole('button', {name:'Collapse panels',exact:true});
+  const traffic = page.getByRole('region', {name:'Aircraft list'});
+  const weather = page.getByRole('region', {name:'Weather layers'});
+  const search = traffic.getByRole('textbox', {name:'Search aircraft'});
+  const filters = traffic.getByText('Flight filters', {exact:true});
+  const row = traffic.getByRole('button', {name:'Select WEATHER TEST',exact:true});
+  const ground = traffic.getByRole('button', {name:'Select WEATHER GROUND',exact:true});
+  const wind = weather.getByRole('button', {name:'Wind',exact:true});
+  const radar = weather.getByRole('button', {name:'Rain radar',exact:true});
+  const opacity = weather.getByRole('slider', {name:'Radar opacity'});
+  const outlookButton = weather.getByRole('button', {name:'Changi outlook',exact:true});
+  const details = page.getByRole('region', {name:'Selected aircraft details'});
+  const replay = page.getByRole('region', {name:'Rain radar playback'});
+
+  if (!(await traffic.isVisible())) await trafficButton.tap();
+  await expect(row).toBeInViewport();
+  expect(await row.evaluate(element => {
+   const box = element.getBoundingClientRect();
+   return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  })).toBe(true);
+  for (const control of [trafficButton, weatherButton, collapse]) {
+   const box = await expectOnScreen(control, {width:320,height:568});
+   expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+  }
+  await expect(ground).toBeVisible();
+  await filters.tap();
+  await traffic.getByRole('button', {name:'Airborne',exact:true}).tap();
+  await expect(ground).toHaveCount(0);
+  const direction = traffic.getByLabel('Changi direction');
+  await direction.selectOption('unknown');
+  await search.fill('WEATHER');
+  await filters.tap();
+  await row.tap();
+  await expect(traffic).toBeHidden();
+  await expect(trafficButton).toBeFocused();
+  await expect(details.getByRole('heading', {name:'WEATHER TEST'})).toBeVisible();
+  await expect.poll(() => highlightedMarker(page)).not.toBeNull();
+
+  await weatherButton.press('Space');
+  await expect(weather).toBeVisible();
+  await wind.tap();
+  await radar.tap();
+  await expect(weather.getByText(/Model valid .* SGT/)).toBeVisible();
+  await expect(weather.getByRole('list', {name:'Wind speed in metres per second'}).getByRole('listitem'))
+   .toHaveText(['0','2','5','10+']);
+  await expect(weather.getByText('Rain radar · 480 km')).toBeVisible();
+  await expect(weather.getByText('Light', {exact:true})).toBeVisible();
+  await expect(weather.getByText('Heavy', {exact:true})).toBeVisible();
+  await opacity.fill('55');
+  await opacity.press('ArrowRight');
+  await expect(opacity).toHaveValue('60');
+  await weather.getByRole('button', {name:'Past hour',exact:true}).click();
+  await expect(replay.getByText('Aircraft remain live')).toBeVisible();
+  const replayTime = replay.getByRole('slider', {name:'Rain radar time'});
+  await expect(replayTime).toHaveValue('0');
+  await replay.getByRole('button', {name:'Play radar',exact:true}).click();
+  await expect(replayTime).toHaveValue('1');
+  await replay.getByRole('button', {name:'Pause radar',exact:true}).click();
+  await expect(replay.getByText('3/13 frames available · missing frames omitted')).toBeVisible();
+  const smallest = testInfo.outputPath('320x568-weather.png');
+  await page.screenshot({path:smallest});
+  await testInfo.attach('320x568 weather', {path:smallest,contentType:'image/png'});
+
+  for (const [width, height, compact, returning] of [
+   [390,844,true], [768,1024,true], [820,1180,true], [768,1024,true,true],
+   [1024,768,false], [1440,900,false], [844,390,true],
+  ] as const) {
+   const viewport = {width,height};
+   await page.setViewportSize(viewport);
+   await expect(weather).toBeVisible();
+   if (compact) await expect(traffic).toBeHidden();
+   else await expect(traffic).toBeVisible();
+   await expectOnScreen(weather, viewport);
+   await expect(wind).toHaveAttribute('aria-pressed','true');
+   await expect(radar).toHaveAttribute('aria-pressed','true');
+   await expect(opacity).toHaveValue('60');
+   await expect(replayTime).toHaveValue('1');
+   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+   if (compact) await collapse.tap();
+   await expect(details.getByRole('heading', {name:'WEATHER TEST'})).toBeVisible();
+   if (compact) await trafficButton.tap();
+   await expectOnScreen(traffic, viewport);
+   await expect(search).toHaveValue('WEATHER');
+   await expect(row).toHaveClass(/\bselected\b/);
+   await expect(ground).toHaveCount(0);
+   if (!(await direction.isVisible())) {
+    await filters.click();
+    await expect(direction).toHaveValue('unknown');
+    await filters.click();
+   } else {
+    await expect(direction).toHaveValue('unknown');
+   }
+   if (compact) await weatherButton.tap();
+   if (!returning) {
+    const screenshot = testInfo.outputPath(`${width}x${height}-weather.png`);
+    await page.screenshot({path:screenshot});
+    await testInfo.attach(`${width}x${height} weather`, {path:screenshot,contentType:'image/png'});
+   }
+  }
+
+  const credit = weather.getByRole('link', {name:'MSS / NEA via data.gov.sg'});
+  await credit.scrollIntoViewIfNeeded();
+  await expect(credit).toBeInViewport({ratio:1});
+  await opacity.scrollIntoViewIfNeeded();
+  await expect(opacity).toBeInViewport({ratio:1});
+  await opacity.press('ArrowLeft');
+  await expect(opacity).toHaveValue('55');
+  await replay.getByRole('button', {name:'Return to Live',exact:true}).click();
+  await expect(replay).toHaveCount(0);
+  await expect(weather.getByRole('button', {name:'Past hour',exact:true})).toBeEnabled();
+  expect(requests.filter(layer => layer === 'radar_history')).toHaveLength(1);
+  await outlookButton.tap();
+  const outlook = page.getByRole('dialog', {name:'Changi Airport, Singapore'});
+  await expect(outlook.getByRole('list', {name:'Next five days'}).getByRole('listitem')).toHaveCount(5);
+  await outlook.getByRole('button', {name:'Close Changi outlook'}).tap();
+  await expect(outlook).toBeHidden();
+  await expect(outlookButton).toBeFocused();
+
+  await page.setViewportSize({width:390,height:844});
+  await collapse.press('Space');
+  await expect(weather).toBeHidden();
+  await expect(weatherButton).toBeFocused();
+  expect(await weatherButton.evaluate(el => {
+   const style = getComputedStyle(el);
+   return el.matches(':focus-visible') && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
+  })).toBe(true);
+  await trafficButton.tap();
+  await row.tap();
+  await expect.poll(() => highlightedMarker(page)).not.toBeNull();
+  const beforePan = (await highlightedMarker(page))!;
+  const start = await page.evaluate(({x,y}) => {
+   const canvas = document.querySelector('.cesium-widget canvas');
+   for (const offset of [30,-30,60,-60]) {
+    const start = x < innerWidth / 2 ? x - 20 : x - 70;
+    if ([start,start + 25,start + 50].every(point => document.elementFromPoint(point,y + offset) === canvas)) {
+     return {x:start, y:y + offset};
+    }
+   }
+   return null;
+  }, beforePan);
+  expect(start).not.toBeNull();
+  await page.mouse.move(start!.x,start!.y);
+  await page.mouse.down();
+  await page.mouse.move(start!.x + 50,start!.y, {steps:8});
+  await page.mouse.up();
+  await expect.poll(async () => {
+   const marker = await highlightedMarker(page);
+   return marker ? marker.x - beforePan.x : 0;
+  }).toBeGreaterThan(15);
+  const cameraHeight = () => page.evaluate(() => window.__changiBenchmark?.cameraHeight ?? NaN);
+  await expect.poll(cameraHeight).toBeGreaterThan(0);
+  const beforeZoom = await cameraHeight();
+  await page.mouse.move(start!.x,start!.y);
+  await page.mouse.wheel(0,-250);
+  await expect.poll(cameraHeight).toBeLessThan(beforeZoom * 0.99);
+ });
+});
+
+for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mobile?'mobile':'desktop'}`,async({page})=>{
+ if(mobile)await page.setViewportSize({width:390,height:844});
+ await page.addInitScript(()=>{window.__changiBenchmark={frames:[],ready:false,failed:false,lastRender:0,aircraftCount:0,visibleCount:0}});
+ await page.emulateMedia({reducedMotion:mobile?'reduce':'no-preference'});
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ const requests=await useLiveWeather(page);
  await page.goto('./');
  await expect(page.locator('.cesium-widget canvas')).toBeVisible();
  const wind=page.getByRole('button',{name:'Wind',exact:true}),radar=page.getByRole('button',{name:'Rain radar',exact:true});
@@ -72,8 +307,9 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
  expect(requests.filter(x=>x==='radar_history')).toHaveLength(1);
  await page.getByRole('button',{name:'Zoom in',exact:true}).click();
  await page.screenshot({path:`/tmp/changi-weather-${mobile?'mobile':'desktop'}.png`});
- if(mobile)await page.getByRole('button',{name:'Toggle aircraft list'}).click();
  await expect(replay.getByText(/Wind model valid .*SGT/)).toBeVisible();
+ const panelControls=page.getByRole('group',{name:'Map panels'});
+ if(mobile)await panelControls.getByRole('button',{name:'Traffic',exact:true}).click();
  await page.getByRole('button',{name:'Select WEATHER TEST',exact:true}).click();
  await page.getByRole('button',{name:'Follow aircraft',exact:true}).click();
  await expect(page.getByRole('region',{name:'3D aircraft follow'})).toBeVisible();
@@ -96,6 +332,7 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
   await page.getByRole('button',{name:'Remove pin'}).click();
  }
  await page.getByLabel(mobile?'Map region':'Airspace region',{exact:true}).selectOption('london');
+ if(mobile)await panelControls.getByRole('button',{name:'Weather',exact:true}).click();
  await expect(radar).toBeDisabled();await expect(page.getByText('Weather covers Singapore only.')).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect(errors).toEqual([]);
@@ -188,8 +425,8 @@ for (const mobile of [false, true]) {
   });
 }
 
-test('compact desktop keeps aircraft selectable with wind and outlook open', async ({page}) => {
-  await page.setViewportSize({width:801, height:900});
+test('wide map keeps aircraft selectable with wind and outlook open', async ({page}) => {
+  await page.setViewportSize({width:1024, height:560});
   const frame = JSON.parse(fs.readFileSync('../tests/fixtures/scenarios/changi-demo.json', 'utf8')).frames[0];
   const now = Date.now() / 1000;
   Object.assign(frame, {mode:'live', scenario_time:null, server_time:now});
