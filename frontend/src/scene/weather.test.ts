@@ -14,6 +14,13 @@ function setup() {
 }
 function provider() {return new SingleTileImageryProvider({url:frame.url,tileWidth:512,tileHeight:512});}
 beforeEach(()=>{vi.stubGlobal('ImageBitmap',class {});vi.stubGlobal('OffscreenCanvas',class {});vi.spyOn(document,'hidden','get').mockReturnValue(false);});
+beforeEach(()=>{
+  vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockImplementation(function(this:HTMLCanvasElement){
+    return {canvas:this,drawImage:vi.fn(),createImageData:(w:number,h:number)=>({data:new Uint8ClampedArray(w*h*4)}),
+      putImageData:vi.fn(),save:vi.fn(),scale:vi.fn(),createRadialGradient:()=>({addColorStop:vi.fn()}),
+      fillRect:vi.fn(),beginPath:vi.fn(),arc:vi.fn(),fill:vi.fn(),stroke:vi.fn(),restore:vi.fn()} as never;
+  });
+});
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe('station wind',()=>{
@@ -160,10 +167,6 @@ describe('regional model wind',()=>{
   })));
 
   function setupShade(){
-    vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockReturnValue({
-      createImageData:(width:number,height:number)=>({data:new Uint8ClampedArray(width*height*4)}),
-      putImageData:vi.fn(),
-    } as never);
     vi.spyOn(HTMLCanvasElement.prototype,'toDataURL').mockReturnValue('data:image/png;base64,AA');
     const viewer=setup();
     for(let i=0;i<3;i++)viewer.imageryLayers.addImageryProvider(provider());
@@ -214,23 +217,24 @@ describe('regional model wind',()=>{
   });
 });
 
+async function flush() {for(let i=0;i<8;i++)await Promise.resolve();}
+
 describe('rain radar',()=>{
   it('maps geographic bounds, appends after base imagery and removes only its own layer',async()=>{
     const viewer=setup();
     for(let i=0;i<3;i++)viewer.imageryLayers.addImageryProvider(provider());
     const bases=[0,1,2].map(i=>viewer.imageryLayers.get(i));
-    const loaded=provider();
-    const load=vi.spyOn(SingleTileImageryProvider,'fromUrl').mockResolvedValue(loaded);
+    vi.spyOn(Resource.prototype,'fetchImage').mockResolvedValue(new Image(64,64));
     const cleanup=addRadarLayer(viewer as never,frame,.4,vi.fn());
-    await Promise.resolve();
+    await flush();
     expect(viewer.imageryLayers.length).toBe(4);
     expect(viewer.imageryLayers.get(3).alpha).toBe(.4);
-    expect(load.mock.calls[0][0]).toBe(frame.url);
-    const rectangle=load.mock.calls[0][1]?.rectangle;
+    const loaded=viewer.imageryLayers.get(3).imageryProvider;
+    const rectangle=loaded.rectangle;
     expect(rectangle).toBeDefined();
     expect(CesiumMath.toDegrees(rectangle!.west)).toBeCloseTo(103.3);
     expect(CesiumMath.toDegrees(rectangle!.north)).toBeCloseTo(1.9);
-    expect(load.mock.calls[0][1]?.credit).toBeTruthy();
+    expect(loaded.credit).toBeTruthy();
     cleanup();cleanup();
     expect([0,1,2].map(i=>viewer.imageryLayers.get(i))).toEqual(bases);
     expect(viewer.imageryLayers.length).toBe(3);
@@ -239,28 +243,29 @@ describe('rain radar',()=>{
 
   it('does not add imagery when its request completes after cleanup',async()=>{
     const viewer=setup();
-    let resolve!:(value:SingleTileImageryProvider)=>void;
-    vi.spyOn(SingleTileImageryProvider,'fromUrl').mockReturnValue(new Promise(done=>{resolve=done;}));
+    let resolve!:(value:HTMLImageElement)=>void;
+    vi.spyOn(Resource.prototype,'fetchImage').mockReturnValue(new Promise(done=>{resolve=done;}));
     const cleanup=addRadarLayer(viewer as never,frame,.5,vi.fn());
-    cleanup();resolve(provider());await Promise.resolve();
+    cleanup();resolve(new Image(64,64));await flush();
     expect(viewer.imageryLayers.length).toBe(0);
   });
 
   it('reports initial download failure once',async()=>{
     const viewer=setup(),onError=vi.fn();
-    vi.spyOn(SingleTileImageryProvider,'fromUrl').mockRejectedValue(new Error('denied'));
+    vi.spyOn(Resource.prototype,'fetchImage').mockRejectedValue(new Error('denied'));
     const cleanup=addRadarLayer(viewer as never,frame,.5,onError);
-    await Promise.resolve();await Promise.resolve();
+    await flush();
     expect(onError).toHaveBeenCalledOnce();
     expect(viewer.imageryLayers.length).toBe(0);
     cleanup();
   });
 
   it('removes failed imagery and its error listener',async()=>{
-    const viewer=setup(),onError=vi.fn(),loaded=provider();
-    vi.spyOn(SingleTileImageryProvider,'fromUrl').mockResolvedValue(loaded);
+    const viewer=setup(),onError=vi.fn();
+    vi.spyOn(Resource.prototype,'fetchImage').mockResolvedValue(new Image(64,64));
     const cleanup=addRadarLayer(viewer as never,frame,.5,onError);
-    await Promise.resolve();
+    await flush();
+    const loaded=viewer.imageryLayers.get(0).imageryProvider;
     loaded.errorEvent.raiseEvent(new Error('unavailable'));
     expect(viewer.imageryLayers.length).toBe(0);
     expect(loaded.errorEvent.numberOfListeners).toBe(0);
@@ -271,20 +276,20 @@ describe('rain radar',()=>{
   it('ignores pending rejection after disposal',async()=>{
     const viewer=setup(),onError=vi.fn();
     let reject!:(error:Error)=>void;
-    vi.spyOn(SingleTileImageryProvider,'fromUrl').mockReturnValue(new Promise((_,fail)=>{reject=fail;}));
+    vi.spyOn(Resource.prototype,'fetchImage').mockReturnValue(new Promise((_,fail)=>{reject=fail;}));
     const cleanup=addRadarLayer(viewer as never,frame,.5,onError);
     cleanup();reject(new Error('late error'));
-    await Promise.resolve();await Promise.resolve();
+    await flush();
     expect(onError).not.toHaveBeenCalled();
     expect(viewer.imageryLayers.length).toBe(0);
   });
 
   it('ignores completion after Cesium itself is destroyed',async()=>{
     const viewer=setup(),onError=vi.fn();
-    vi.spyOn(SingleTileImageryProvider,'fromUrl').mockResolvedValue(provider());
+    vi.spyOn(Resource.prototype,'fetchImage').mockResolvedValue(new Image(64,64));
     const cleanup=addRadarLayer(viewer as never,frame,.5,onError);
     viewer.isDestroyed=()=>true;
-    await Promise.resolve();
+    await flush();
     expect(viewer.imageryLayers.length).toBe(0);
     expect(onError).not.toHaveBeenCalled();
     cleanup();
@@ -307,7 +312,6 @@ describe('radar playback controller',()=>{
     };
     return {requests,finish};
   }
-  async function flush() {for(let i=0;i<8;i++)await Promise.resolve();}
   function radarProvider(viewer:ReturnType<typeof setup>,index=0) {
     const loaded=viewer.imageryLayers.get(index).imageryProvider;
     if (!(loaded instanceof SingleTileImageryProvider)) throw new Error('Expected single tile radar');
@@ -327,9 +331,9 @@ describe('radar playback controller',()=>{
     viewer.imageryLayers.layerAdded.addEventListener(()=>counts.push(viewer.imageryLayers.length));
     controller.show(snapshot(100),.4,ready,error);
     expect(ready).not.toHaveBeenCalled();
-    const image=await network.finish(0);
+    await network.finish(0);
     const old=viewer.imageryLayers.get(3),oldProvider=old.imageryProvider;
-    expect(await oldProvider.requestImage(0,0,0)).toBe(image);
+    expect(await oldProvider.requestImage(0,0,0)).toBeInstanceOf(HTMLCanvasElement);
     expect(old.alpha).toBe(.4);
     expect(CesiumMath.toDegrees(oldProvider.rectangle.west)).toBeCloseTo(103.3);
     expect(oldProvider.credit).toBeTruthy();

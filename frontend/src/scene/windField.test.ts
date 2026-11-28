@@ -50,12 +50,20 @@ describe('regional wind field',()=>{
     expect(pixelAt(pixels,128,103.5,1.9)).toEqual([0,0,0,0]);
   });
 
+  it('keeps the shared edge of two valid model cells fully shaded',()=>{
+    const grid=[0,1].flatMap(row=>[-1,0,1].map(col=>point(row,col,1+row,104+col)));
+    const pixels=rasterWindField(buildWindField(grid),256);
+    for(const lon of [103.98,104.02]) expect(pixelAt(pixels,256,lon,1.5)[3]).toBe(255);
+  });
+
   it('clips a boundary cell and its trails to the 500 km circle',()=>{
     const field=buildWindField([point(3,0,4.8,104),point(3,1,4.8,105.1),point(4,0,5.9,104),point(4,1,5.9,105.1)]);
     expect(sampleWind(field,104.1,5.2)).toBeDefined();
     expect(sampleWind(field,105.05,5.78)).toBeUndefined();
     const pixels=rasterWindField(field,256);
-    expect(pixelAt(pixels,256,104.1,5.2)[3]).toBe(255);
+    const fadedEdge=pixelAt(pixels,256,104.1,5.2)[3];
+    expect(fadedEdge).toBeGreaterThan(0);
+    expect(fadedEdge).toBeLessThan(255);
     expect(pixelAt(pixels,256,105.05,5.78)[3]).toBe(0);
     expect(windPaths(field).flat().every(({lon,lat})=>withinWindRegion(lon,lat))).toBe(true);
   });
