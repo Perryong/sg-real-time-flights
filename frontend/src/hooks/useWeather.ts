@@ -1,21 +1,26 @@
 import {useEffect,useRef,useState} from 'react';
 import {weatherUrl} from '../data/hosting';
-import {startWeatherPolling,type WeatherLoad} from '../data/weatherPolling';
+import {startWeatherPolling,type WeatherGate,type WeatherLoad} from '../data/weatherPolling';
 import {weatherCurrent,type WeatherLayer} from '../data/weather';
 export function useWeatherLayer(layer:WeatherLayer,enabled:boolean){
  const [state,setState]=useState<WeatherLoad>({phase:'off',message:''});
- const lastGood=useRef<WeatherLoad|null>(null);
- const gate=useRef({notBefore:0});
+ const lastGood=useRef<Extract<WeatherLoad,{phase:'ready'}>|null>(null);
+ const gate=useRef<WeatherGate>({notBefore:0});
  useEffect(()=>{
   if(!enabled)return;
   return startWeatherPolling(weatherUrl,layer,gate.current,next=>{
-   if(next.phase==='ready')lastGood.current=next;
+   if(next.phase==='ready'&&(next.data.layer!=='changi_outlook'||next.data.fetched_at!==null))lastGood.current=next;
    const cached=lastGood.current;
+   const outlookCache=cached?.data.layer==='changi_outlook'?cached.data:undefined;
    setState(previous=>{
+    if(outlookCache&&next.phase==='error')return {...next,cached:outlookCache};
+    if(outlookCache&&next.phase==='ready'&&next.data.layer==='changi_outlook'&&next.data.fetched_at===null)
+     return {phase:'error',message:next.data.message??'Weather temporarily unavailable.',cached:outlookCache};
     if(next.phase!=='loading')return next;
+    if(outlookCache&&previous.phase==='error')return previous;
     if(gate.current.notBefore>Date.now()&&previous.phase==='error')return previous;
-    if(cached?.phase==='ready'&&weatherCurrent(cached.data,Date.now()/1000))return cached;
-    return gate.current.notBefore>Date.now()?{phase:'paused',message:'Waiting for the next scheduled weather check.'}:next;
+    if(cached&&weatherCurrent(cached.data,Date.now()/1000))return cached;
+    return !gate.current.awaitingProvider&&gate.current.notBefore>Date.now()?{phase:'paused',message:'Waiting for the next scheduled weather check.'}:next;
    });
   });
  },[layer,enabled]);

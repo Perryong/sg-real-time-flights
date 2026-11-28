@@ -56,7 +56,7 @@ export default function App() {
   const wind=useWeatherLayer('wind_regional',weather.wind&&!weatherUnavailable);
   const radar=useWeatherLayer('radar_wide',weather.radar&&!weatherUnavailable);
   const weatherNow=Date.now()/1000;
-  const windPoints=wind.phase==='ready'&&wind.data.layer==='wind_regional'&&weatherCurrent(wind.data,weatherNow)?wind.data.points:null;
+  const regionalWind=wind.phase==='ready'&&wind.data.layer==='wind_regional'&&weatherCurrent(wind.data,weatherNow)?wind.data:null;
   const liveRadarFrame=radar.phase==='ready'&&radar.data.layer==='radar_wide'&&weatherCurrent(radar.data,weatherNow)?radar.data.radar:null;
   const playback=useRadarPlayback(weather.radar&&!weatherUnavailable,liveRadarFrame,weatherNow);
   const activeRegion=regions[feed.mode==='live'?region:'singapore'];
@@ -229,7 +229,7 @@ export default function App() {
       <main className="workspace">
         <Suspense fallback={null}>
           <MapScene
-            windPoints={windPoints}
+            windPoints={regionalWind?.points??null}
             radarFrame={playback.frame}
             radarOpacity={weather.opacity}
             onRadarError={playback.onError}
@@ -264,7 +264,7 @@ export default function App() {
           />
         </Suspense>
         <div className="map-shade" />
-        <RadarReplayControls playback={playback}/>
+        <RadarReplayControls playback={playback} windValidAt={regionalWind?.observed_at??null}/>
         <WeatherControls preferences={weather} onChange={setWeather} wind={wind} radar={radar} unavailable={weatherUnavailable} now={weatherNow} radarError={playback.imageError} playback={playback}/>
         {!follow&&<select className="mobile-region-picker" aria-label="Map region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl} onChange={e=>{setSelected(null);setFollow(false);setObserverOpen(false);setPlacing(false);setView('overhead');setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name}</option>)}</select>}
         <nav className="rail" aria-label="Primary navigation">

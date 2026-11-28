@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {parseWeather,weatherCurrent} from './weather';
+import {changiForecastDates,outlookFreshness,parseWeather,weatherCurrent} from './weather';
 const now=1800000000;
 const wind={layer:'wind',state:'fresh',observed_at:now-60,fetched_at:now,retry_after:60,message:null,stations:[{id:'S1',name:'Changi',lat:1.36,lon:103.99,speed_mps:2,from_deg:90}]};
 const radar={layer:'radar',state:'fresh',observed_at:now-300,fetched_at:now,retry_after:300,message:null,radar:{url:'https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/test.png',west:103.34,south:.72,east:104.6,north:1.98,observed_at:now-300,expires_at:now+600}};
@@ -51,4 +51,39 @@ it('does not expose expired history or unavailable snapshots as playable',()=>{
  const expired=parseWeather({...history,frames:history.frames.map(f=>({...f,expires_at:now-1}))},'radar_history');
  expect(expired&&weatherCurrent(expired,now)).toBe(false);
  const unavailable=parseWeather({...history,state:'unavailable'},'radar_history');expect(unavailable&&weatherCurrent(unavailable,now)).toBe(false);
+});
+
+const outlook={
+ layer:'changi_outlook',state:'fresh',observed_at:now-900,fetched_at:now-100,retry_after:900,message:null,
+ source:'Open-Meteo',location:{name:'Changi Airport',lat:1.3644,lon:103.9915},
+ current:{humidity_pct:0,pressure_msl_hpa:null},
+ daily:[
+  {date:'2026-11-30',weather_code:0,low_c:24,high_c:null},
+  {date:'2026-12-01',weather_code:999,low_c:30,high_c:23},
+  {date:'2026-12-02',weather_code:97,low_c:null,high_c:34},
+  {date:'2026-02-30',weather_code:2,low_c:24,high_c:31},
+ ],
+};
+it('preserves outlook fields independently and validates the fixed airport and dates',()=>{
+ expect(parseWeather(outlook,'changi_outlook')).toMatchObject({
+  current:{humidity_pct:0,pressure_msl_hpa:null},
+  daily:[
+   {date:'2026-11-30',weather_code:0,low_c:24,high_c:null},
+   {date:'2026-12-01',weather_code:null,low_c:null,high_c:null},
+   {date:'2026-12-02',weather_code:97,low_c:null,high_c:34},
+  ],
+ });
+ expect(parseWeather({...outlook,location:{...outlook.location,lon:103}},'changi_outlook')).toBeNull();
+});
+it('advances tomorrow and the four following dates at Singapore midnight',()=>{
+ expect(changiForecastDates(Date.parse('2026-11-30T15:59:59Z')/1000)).toEqual(['2026-12-01','2026-12-02','2026-12-03','2026-12-04','2026-12-05']);
+ expect(changiForecastDates(Date.parse('2026-11-30T16:00:00Z')/1000)).toEqual(['2026-12-02','2026-12-03','2026-12-04','2026-12-05','2026-12-06']);
+});
+it('ages current model time and the forecast retrieval independently',()=>{
+ const data=parseWeather(outlook,'changi_outlook');
+ if(data?.layer!=='changi_outlook')throw Error('Expected Changi outlook');
+ expect(outlookFreshness(data,now+901)).toEqual({current:'stale',forecast:'fresh'});
+ expect(outlookFreshness(data,now+2701)).toEqual({current:'unavailable',forecast:'fresh'});
+ expect(outlookFreshness(data,now+3501)).toEqual({current:'unavailable',forecast:'stale'});
+ expect(outlookFreshness(data,now+21501)).toEqual({current:'unavailable',forecast:'unavailable'});
 });

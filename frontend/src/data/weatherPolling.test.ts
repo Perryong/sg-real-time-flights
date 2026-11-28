@@ -51,3 +51,39 @@ it('polls regional model wind once per fifteen minutes',async()=>{
  await vi.advanceTimersByTimeAsync(899999);expect(fetcher).toHaveBeenCalledTimes(1);
  await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(2);stop();
 });
+it('checks a pending Changi outlook after 15 seconds and resumes the usual cadence after success',async()=>{
+ const data={...payload,layer:'changi_outlook',source:'Open-Meteo',location:{name:'Changi Airport',lat:1.3644,lon:103.9915},
+  current:{humidity_pct:80,pressure_msl_hpa:1005},daily:[],retry_after:900};
+ const visibility=vi.spyOn(document,'visibilityState','get');
+ const fetcher=vi.fn().mockResolvedValueOnce(Response.json({...data,state:'unavailable',observed_at:null,fetched_at:null,retry_after:15},
+  {status:202,headers:{'Retry-After':'15'}})).mockImplementation(async()=>Response.json(data));
+ vi.stubGlobal('fetch',fetcher);
+ const gate={notBefore:0},seen=vi.fn();
+ let stop=startWeatherPolling('/api/weather','changi_outlook',gate,seen);
+ await vi.advanceTimersByTimeAsync(0);expect(seen.mock.calls.at(-1)?.[0].phase).toBe('loading');
+ stop();
+ visibility.mockReturnValue('hidden');
+ stop=startWeatherPolling('/api/weather','changi_outlook',gate,seen);
+ await vi.advanceTimersByTimeAsync(5000);expect(fetcher).toHaveBeenCalledTimes(1);
+ visibility.mockReturnValue('visible');document.dispatchEvent(new Event('visibilitychange'));
+ await vi.advanceTimersByTimeAsync(9999);expect(fetcher).toHaveBeenCalledTimes(1);
+ await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(2);
+ expect(seen.mock.calls.at(-1)?.[0].phase).toBe('ready');
+ await vi.advanceTimersByTimeAsync(899999);expect(fetcher).toHaveBeenCalledTimes(2);
+ await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(3);
+ stop();
+});
+it('allows a Changi cache recheck after canceling an in-flight first request',async()=>{
+ const fetcher=vi.fn((_url:string,{signal}:RequestInit)=>new Promise<Response>((_resolve,reject)=>{
+  signal?.addEventListener('abort',()=>reject(signal.reason),{once:true});
+ }));
+ vi.stubGlobal('fetch',fetcher);
+ const gate={notBefore:0},seen=vi.fn();
+ const stop=startWeatherPolling('/api/weather','changi_outlook',gate,seen);
+ await vi.advanceTimersByTimeAsync(1000);stop();
+ expect(fetcher.mock.calls[0][1].signal?.aborted).toBe(true);
+ const stopAgain=startWeatherPolling('/api/weather','changi_outlook',gate,seen);
+ await vi.advanceTimersByTimeAsync(13999);expect(fetcher).toHaveBeenCalledTimes(1);
+ await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(2);
+ stopAgain();
+});

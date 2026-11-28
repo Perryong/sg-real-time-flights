@@ -1,6 +1,6 @@
 import {regions} from './regions';
 
-export type WeatherLayer = 'wind' | 'radar' | 'wind_regional' | 'radar_wide' | 'radar_history';
+export type WeatherLayer = 'wind' | 'radar' | 'wind_regional' | 'radar_wide' | 'radar_history' | 'changi_outlook';
 export interface WeatherEnvelope {
  state:'fresh'|'stale'|'unavailable';
  /** Observation time for measured feeds; valid time for the explicitly modelled feed. */
@@ -15,11 +15,60 @@ export interface RegionalWindWeather extends WeatherEnvelope {layer:'wind_region
 export interface RadarWeather extends WeatherEnvelope {layer:'radar';radar:RadarFrame|null}
 export interface WideRadarWeather extends WeatherEnvelope {layer:'radar_wide';range_km:480;radar:RadarFrame|null}
 export interface RadarHistoryWeather extends WeatherEnvelope {layer:'radar_history';range_km:480;window_start:number;window_end:number;expected_frames:13;frames:RadarFrame[]}
-export type WeatherData = WindWeather | RegionalWindWeather | RadarWeather | WideRadarWeather | RadarHistoryWeather;
+const changiAirport={name:'Changi Airport',lat:1.3644,lon:103.9915} as const;
+export interface ChangiForecastDay {date:string;weather_code:number|null;low_c:number|null;high_c:number|null}
+export interface ChangiOutlookWeather extends WeatherEnvelope {
+ layer:'changi_outlook';source:'Open-Meteo';location:typeof changiAirport;
+ current:{humidity_pct:number|null;pressure_msl_hpa:number|null};
+ daily:ChangiForecastDay[];
+}
+export type WeatherData = WindWeather | RegionalWindWeather | RadarWeather | WideRadarWeather | RadarHistoryWeather | ChangiOutlookWeather;
 
 const record=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const finite=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 const timestamp=(v:unknown):v is number|null=>v===null||(finite(v)&&v>=0);
+const weatherCodes:Readonly<Record<number,string>>={
+ 0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Freezing fog',
+ 51:'Light drizzle',53:'Moderate drizzle',55:'Heavy drizzle',56:'Light freezing drizzle',57:'Heavy freezing drizzle',
+ 61:'Light rain',63:'Moderate rain',65:'Heavy rain',66:'Light freezing rain',67:'Heavy freezing rain',
+ 71:'Light snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',
+ 80:'Light rain showers',81:'Moderate rain showers',82:'Very heavy rain showers',85:'Light snow showers',86:'Heavy snow showers',
+ 95:'Thunderstorm',96:'Thunderstorm with light hail',97:'Heavy thunderstorm',99:'Thunderstorm with heavy hail',
+};
+export const weatherCodeLabel=(code:number|null)=>code===null?null:weatherCodes[code]??null;
+const range=(value:unknown,min:number,max:number)=>finite(value)&&value>=min&&value<=max?value:null;
+function dateKey(value:unknown):value is string {
+ if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const date=new Date(`${value}T00:00:00Z`);
+ return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;
+}
+function parseChangiOutlook(value:Record<string,unknown>,envelope:WeatherEnvelope):ChangiOutlookWeather|null {
+ const {location,source}=value;
+ if(!record(location)||location.name!==changiAirport.name||location.lat!==changiAirport.lat||location.lon!==changiAirport.lon||source!=='Open-Meteo')return null;
+ const current=record(value.current)?value.current:{};
+ const daily=new Map<string,ChangiForecastDay>();
+ if(Array.isArray(value.daily))for(const day of value.daily){
+  if(!record(day)||!dateKey(day.date)||daily.has(day.date))continue;
+  const weather_code=finite(day.weather_code)&&weatherCodeLabel(day.weather_code)?day.weather_code:null;
+  const low=range(day.low_c,-100,70),high=range(day.high_c,-100,70);
+  const inverted=low!==null&&high!==null&&low>high;
+  daily.set(day.date,{date:day.date,weather_code,low_c:inverted?null:low,high_c:inverted?null:high});
+ }
+ return {layer:'changi_outlook',...envelope,source,location:changiAirport,
+  observed_at:range(envelope.observed_at,0,8.64e12),fetched_at:range(envelope.fetched_at,0,8.64e12),
+  current:{humidity_pct:range(current.humidity_pct,0,100),pressure_msl_hpa:range(current.pressure_msl_hpa,850,1100)},daily:[...daily.values()]};
+}
+export function changiForecastDates(now:number):string[] {
+ const singaporeDay=Math.floor((now+8*3600)/86400);
+ return Array.from({length:5},(_,index)=>new Date((singaporeDay+index+1)*86400000).toISOString().slice(0,10));
+}
+function outlookAge(at:number|null,now:number,staleAfter:number,expireAfter:number):WeatherEnvelope['state'] {
+ if(at===null||at>now+30||now-at>expireAfter)return 'unavailable';
+ return now-at>staleAfter?'stale':'fresh';
+}
+export function outlookFreshness(data:ChangiOutlookWeather|undefined,now:number){
+ return {current:outlookAge(data?.observed_at??null,now,1800,3600),forecast:outlookAge(data?.fetched_at??null,now,3600,21600)};
+}
 function parsePoint(value:unknown):WindPoint|null {
  if(!record(value))return null;
  const {id,lat,lon,speed_mps,from_deg}=value;
@@ -54,6 +103,7 @@ export function parseWeather(value:unknown,layer:WeatherLayer):WeatherData|null 
  const {state,observed_at,fetched_at,retry_after,message}=value;
  if((state!=='fresh'&&state!=='stale'&&state!=='unavailable')||!timestamp(observed_at)||!timestamp(fetched_at)||!finite(retry_after)||retry_after<0||retry_after>86400||(message!==null&&typeof message!=='string'))return null;
  const envelope:WeatherEnvelope={state,observed_at,fetched_at,retry_after,message};
+ if(layer==='changi_outlook')return parseChangiOutlook(value,envelope);
  if(layer==='wind'){
   if(!Array.isArray(value.stations)||value.stations.length>256)return null;
   const stations:WindStation[]=[];
@@ -97,6 +147,10 @@ export function parseWeather(value:unknown,layer:WeatherLayer):WeatherData|null 
 }
 export function weatherCurrent(data:WeatherData,now:number):boolean {
  if(data.layer==='radar_history')return historyFrames(data,now).length>0;
+ if(data.layer==='changi_outlook'){
+  const freshness=outlookFreshness(data,now);
+  return freshness.current!=='unavailable'||freshness.forecast!=='unavailable';
+ }
  const age=data.observed_at===null?Infinity:now-data.observed_at;
  const maxAge=data.layer==='wind'?600:data.layer==='wind_regional'?1800:900;
  if(data.state!=='fresh'||age< -30||age>maxAge)return false;

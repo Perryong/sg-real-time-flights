@@ -27,3 +27,17 @@ it('keeps a truthful waiting state after a hidden tab resumes inside a retry del
  act(()=>{visibility.mockReturnValue('visible');document.dispatchEvent(new Event('visibilitychange'))});
  expect(hook.result.current.phase).toBe('paused');expect(fetcher).toHaveBeenCalledTimes(1);
 });
+it('retains dated Changi data on refresh failure and stops checks while closed',async()=>{
+ vi.useFakeTimers();vi.spyOn(document,'visibilityState','get').mockReturnValue('visible');
+ const now=Date.now()/1000;
+ const payload={layer:'changi_outlook',state:'fresh',observed_at:now,fetched_at:now,retry_after:900,message:null,source:'Open-Meteo',
+  location:{name:'Changi Airport',lat:1.3644,lon:103.9915},current:{humidity_pct:0,pressure_msl_hpa:1005},daily:[]};
+ const fetcher=vi.fn().mockResolvedValueOnce(Response.json(payload)).mockResolvedValueOnce(new Response('{}',{status:503}));
+ vi.stubGlobal('fetch',fetcher);
+ const hook=renderHook(({enabled})=>useWeatherLayer('changi_outlook',enabled),{initialProps:{enabled:true}});
+ await act(()=>vi.advanceTimersByTimeAsync(0));expect(hook.result.current).toMatchObject({phase:'ready',data:payload});
+ await act(()=>vi.advanceTimersByTimeAsync(900000));expect(hook.result.current).toMatchObject({phase:'error',cached:payload});
+ hook.rerender({enabled:false});
+ await act(()=>vi.advanceTimersByTimeAsync(1800000));
+ expect(hook.result.current.phase).toBe('off');expect(fetcher).toHaveBeenCalledTimes(2);
+});
