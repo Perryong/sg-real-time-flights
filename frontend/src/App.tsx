@@ -21,6 +21,7 @@ import {
   Radio,
   Play,
   Pause,
+  History,
   RotateCcw,
   ArrowUpRight,
   PanelLeftClose,
@@ -39,7 +40,8 @@ import ProviderCredits from "./components/ProviderCredits";
 import AircraftDetails, { formatTime } from "./components/AircraftDetails";
 import SourceDetails from "./components/SourceDetails";
 import { JourneyPanel } from "./journey/JourneyPanel";
-import { useJourney } from "./hooks/useJourney";
+import { CompletedFlightsPanel } from "./journey/CompletedFlightsPanel";
+import { useCompletedJourney, useJourney } from "./hooks/useJourney";
 import { useTraffic } from "./hooks/useTraffic";
 import { freshness, effectiveUpstreamState } from "./data/freshness";
 import type { Airport, Mode, Track } from "./data/types";
@@ -146,13 +148,42 @@ export default function App() {
   if (chosen) previousSelection.current = chosen;
   const journeyTrack = selected && previousSelection.current?.id === selected ? previousSelection.current : null;
   const history = useJourney(journeyTrack, region === "singapore", feed.getNow, !!chosen);
+  const completed = useCompletedJourney();
+  const completedOpen = completed.state !== null;
+  const completedVisible = completedOpen && (!compact || activePanel === "collapsed");
+  const completedSelection = completed.state?.phase === "ready" ? completed.state : null;
+  const archivedJourney = completedSelection?.journey;
+  const completedTrigger = useRef<HTMLButtonElement>(null);
+  const completedCallsign = useRef("");
   const [fitRequest, setFitRequest] = useState({ id: "", nonce: 0 });
-  const journey = history.journey;
+  const journey = completedOpen ? archivedJourney : history.journey;
+  const journeyTime = completedOpen ? completedSelection?.point?.time ?? null : history.selectedTime;
+  const journeyLocateRequest = completedOpen ? completedSelection?.point?.request : history.locateRequest;
   const fitJourney = () => {
     if (journey) setFitRequest(previous => ({ id: journey.id, nonce: previous.nonce + 1 }));
   };
-  const journeyPanel = journey && <JourneyPanel journey={journey} loading={history.loading}
-    message={history.message} selectedTime={history.selectedTime} onSelectTime={history.selectTime} onFit={fitJourney}/>;
+  useEffect(() => {
+    if (archivedJourney?.points.length) setFitRequest(previous => ({ id: archivedJourney.id, nonce: previous.nonce + 1 }));
+  }, [archivedJourney]);
+  const journeyPanel = journey && <JourneyPanel journey={journey} loading={!completedOpen && history.loading}
+    message={completedOpen ? completedSelection?.message : history.message} selectedTime={journeyTime}
+    onSelectTime={completedOpen ? completed.selectTime : history.selectTime} onFit={fitJourney}/>;
+  const closeCompleted = () => {
+    completed.close();
+    completedTrigger.current?.focus();
+  };
+  const openCompleted = () => {
+    completedCallsign.current = journeyTrack?.latest.callsign ?? "";
+    setSelected(null);
+    setFollow(false);
+    setPlacing(false);
+    setLayers(false);
+    setObserverOpen(false);
+    setView("overhead");
+    setRegion("singapore");
+    if (compact) setActivePanel("collapsed");
+    completed.open();
+  };
   const lost = !!selected && !chosen;
   useEffect(() => {
     if (lost) setFollow(false);
@@ -160,6 +191,7 @@ export default function App() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (completedVisible && !sources && !layers) closeCompleted();
         if (compact && activePanel !== "collapsed" && !placing && !follow && !sources && !layers) closeCompactPanel();
         setPlacing(false);
         setFollow(false);
@@ -178,8 +210,9 @@ export default function App() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [compact, activePanel, placing, follow, sources, layers]);
+  }, [compact, activePanel, placing, follow, sources, layers, completedVisible]);
   const choose = (id: string) => {
+    completed.close();
     setSelected(id);
     setFollow(false);
     if(view==='sky')setView('overhead');
@@ -192,6 +225,7 @@ export default function App() {
     setAction((previous) => ({ kind: "locate", id, nonce: previous.nonce + 1 }));
   };
   const switchMode = (mode: Mode) => {
+    completed.close();
     setSelected(null);
     previousSelection.current = null;
     setFollow(false);
@@ -201,7 +235,7 @@ export default function App() {
   const camera = (kind: Exclude<CameraAction["kind"], "locate">, id?: string) => {
     setFollow(false);
     if (kind === "overview" || kind === "place" || kind === "pin") setView("overhead");
-    if (kind === "runway") {setRegion("singapore");setSelected(null);setView("3d");}
+    if (kind === "runway") {completed.close();setRegion("singapore");setSelected(null);setView("3d");}
     setAction((previous) => ({ kind, id, nonce: previous.nonce + 1 }));
   };
   const adjustFollowOrbit = (orbitDelta: number, elevationDelta: number) => {
@@ -241,7 +275,7 @@ export default function App() {
         <div className="header-divider" />
         <div className="workspace-title">
           <Globe2 size={16} />
-          <label className="region-picker"><span className="sr-only">Airspace region</span><select aria-label="Airspace region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl||follow} onChange={e=>{setSelected(null);setFollow(false);setPlacing(false);setObserverOpen(false);setView("overhead");setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name} airspace</option>)}</select></label>
+          <label className="region-picker"><span className="sr-only">Airspace region</span><select aria-label="Airspace region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl||follow} onChange={e=>{completed.close();setSelected(null);setFollow(false);setPlacing(false);setObserverOpen(false);setView("overhead");setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name} airspace</option>)}</select></label>
         </div>
         <div className="header-right">
           <span
@@ -273,8 +307,8 @@ export default function App() {
         <Suspense fallback={null}>
           <MapScene
             journey={!follow && view !== "sky" ? journey : null}
-            journeySelectedTime={history.selectedTime}
-            journeyLocateRequest={history.locateRequest}
+            journeySelectedTime={journeyTime}
+            journeyLocateRequest={journeyLocateRequest}
             journeyFitRequest={fitRequest.id === journey?.id ? fitRequest.nonce : undefined}
             windPoints={regionalWind?.points??null}
             radarFrame={playback.frame}
@@ -312,7 +346,7 @@ export default function App() {
         </Suspense>
         <div className="map-shade" />
         {!inlineReplay && replay}
-        {!follow&&<select className="mobile-region-picker" aria-label="Map region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl} onChange={e=>{setSelected(null);setFollow(false);setObserverOpen(false);setPlacing(false);setView('overhead');setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name}</option>)}</select>}
+        {!follow&&<select className="mobile-region-picker" aria-label="Map region" value={region} disabled={feed.mode!=='live'||!httpFeedUrl} onChange={e=>{completed.close();setSelected(null);setFollow(false);setObserverOpen(false);setPlacing(false);setView('overhead');setRegion(e.target.value as RegionId)}}>{Object.entries(regions).map(([key,r])=><option key={key} value={key}>{r.name}</option>)}</select>}
         <nav className="rail" aria-label="Primary navigation">
           <button
             className={`rail-button ${sidebar && !observerOpen ? "active" : ""}`}
@@ -329,6 +363,21 @@ export default function App() {
             <Plane size={21} />
             <span>Traffic</span>
           </button>
+          {liveAvailable && <button
+            type="button"
+            ref={completedTrigger}
+            className={`rail-button ${completedVisible ? "active" : ""}`}
+            aria-expanded={completedVisible}
+            aria-controls={completedOpen ? "completed-flights" : undefined}
+            onClick={() => {
+              if (completedVisible) closeCompleted();
+              else if (completedOpen) setActivePanel("collapsed");
+              else openCompleted();
+            }}
+          >
+            <History size={20} aria-hidden="true" />
+            <span>Completed<br /> flights</span>
+          </button>}
           <button
             className="rail-button"
             aria-label="Changi airport overview"
@@ -348,7 +397,7 @@ export default function App() {
             <Layers3 size={20} />
             <span>Layers</span>
           </button>
-          <button className={`rail-button ${sidebar && observerOpen?'active':''}`} aria-label="My location" onClick={event=>{if(compact)compactTrigger.current=event.currentTarget;setRegion("singapore");setSelected(null);setFollow(false);setObserverOpen(true);setSidebar(true)}}><MapPin size={20}/><span>My spot</span></button>
+          <button className={`rail-button ${sidebar && observerOpen?'active':''}`} aria-label="My location" onClick={event=>{completed.close();if(compact)compactTrigger.current=event.currentTarget;setRegion("singapore");setSelected(null);setFollow(false);setObserverOpen(true);setSidebar(true)}}><MapPin size={20}/><span>My spot</span></button>
           <div className="rail-bottom">
             <button
               className="rail-button"
@@ -599,6 +648,13 @@ export default function App() {
             <p>Physical geometry only. Operational availability unknown.</p>
           </section>
         )}
+        {completed.state && <CompletedFlightsPanel
+          defaultCallsign={completedCallsign.current}
+          loading={completed.state.phase === "loading"}
+          message={completed.state.phase === "unavailable" ? completed.state.message : undefined}
+          result={completedSelection ? { callsign: completedSelection.journey.callsign, date: completedSelection.date } : undefined}
+          onSearch={(callsign, date) => { void completed.search(callsign, date); }} onEdit={completed.open} onClose={closeCompleted}
+        >{journeyPanel}</CompletedFlightsPanel>}
         {chosen && !follow && view!=='sky' && (
           <AircraftDetails
             isChangi={activeRegion.name==='Singapore'}

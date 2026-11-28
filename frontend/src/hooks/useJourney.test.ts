@@ -2,7 +2,7 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Track } from "../data/types";
-import { regionalJourney, useJourney } from "./useJourney";
+import { regionalJourney, useCompletedJourney, useJourney } from "./useJourney";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -23,6 +23,25 @@ function aircraft(callsign: string | null, time = Math.floor(Date.now() / 1000))
 }
 const leg = (track:Track) => ({ ...regionalJourney(track), status:"airborne", id:"pinned-dated-leg" });
 const response = (journey: unknown) => new Response(JSON.stringify({journey}));
+
+it("uses the callsign and archive date and ignores a superseded completed lookup", async () => {
+  let delayed!: (r: Response) => void;
+  const completed = { ...leg(aircraft("SIA132")), status: "completed", source: "FlyItalyADSB", id: "archive-leg" };
+  const fetch = vi.fn().mockImplementationOnce(() => new Promise(resolve => { delayed = resolve; }))
+    .mockResolvedValueOnce(response(completed));
+  vi.stubGlobal("fetch", fetch);
+  const { result } = renderHook(() => useCompletedJourney());
+  act(() => result.current.open());
+  act(() => { void result.current.search("SIA131", "2026-11-23"); });
+  await act(async () => { await result.current.search(" sia132 ", "2026-11-24"); });
+  expect(result.current.state).toMatchObject({ phase: "ready", date: "2026-11-24", journey: completed });
+  const [url, request] = fetch.mock.lastCall!;
+  expect(url).toBe("/api/journey/completed?callsign=SIA132&date=2026-11-24");
+  expect(request.credentials).toBe("omit");
+  expect(fetch.mock.calls[0][1].signal.aborted).toBe(true);
+  await act(async () => delayed(response({ ...completed, callsign: "SIA131" })));
+  expect(result.current.state).toMatchObject({ phase: "ready", date: "2026-11-24", journey: completed });
+});
 
 it("keeps the selection pinned across feed updates and drops a late response after switching legs", async () => {
   const first = aircraft("SIA132");

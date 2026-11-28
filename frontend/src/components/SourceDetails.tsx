@@ -127,7 +127,7 @@ export default function SourceDetails({
           <p>When enabled, FlyItalyADSB checks the selected region every 30 seconds: 500 km around Singapore, or 200 km around London or Tokyo.
             Aircraft appear once using the newest reported position. Ground aircraft
             are included when reported; this is not a complete parking inventory.
-            Historical routes describe a callsign’s usual route in the last seven days, not today’s confirmed itinerary.
+            The usual route reflects observations for the callsign over the last seven days. Today’s destination is unconfirmed.
             Changi inbound/outbound labels apply only in the Singapore region and require a fresh airborne position and compatible course.
             Gates, boarding, schedules and exact arrival times are available through the official Changi board links.</p>
           <a href="https://flyitalyadsb.com/" target="_blank" rel="noreferrer">FlyItalyADSB <ExternalLink size={12} /></a>

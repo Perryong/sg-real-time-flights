@@ -2144,6 +2144,9 @@ input {
   .map-compact .rail-coordinate {
     display: none;
   }
+  .map-compact .rail {
+    overflow-y: auto;
+  }
   .map-compact:not(.following) .map-panel-drawer {
     top: var(--drawer-edge);
     bottom: auto;

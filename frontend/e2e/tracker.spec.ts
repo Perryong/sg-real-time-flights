@@ -241,8 +241,8 @@ test('historical routes filter likely Changi flights and explain evidence in 3D'
   await expect(page.getByRole('button',{name:'Select OUTBOUND'})).toHaveCount(0);
   await page.getByRole('button',{name:'Select INBOUND'}).click();
   const details=page.getByRole('region',{name:'Selected aircraft details'});
-  await expect(details.getByText('PER → SIN',{exact:true})).toBeVisible();
-  await expect(details.getByText(/not a confirmed destination/)).toBeVisible();
+  await expect(details.getByRole('heading',{name:'Usual route · PER → SIN'})).toBeVisible();
+  await expect(details.getByText(/destination is unconfirmed/i)).toBeVisible();
   await expect(details.getByRole('link',{name:'Official Changi arrivals'})).toHaveAttribute('href','https://www.changiairport.com/en/fly/flight-information/arrivals.html');
   await page.getByRole('button',{name:'Close aircraft details'}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
@@ -254,7 +254,7 @@ test('historical routes filter likely Changi flights and explain evidence in 3D'
   if (!(await page.getByLabel('Changi direction').isVisible())) await filters.click();
   await page.getByLabel('Changi direction').selectOption('outbound');
   await page.getByRole('button',{name:'Select OUTBOUND'}).click();
-  await expect(details.getByText('SIN → KUL',{exact:true})).toBeVisible();
+  await expect(details.getByRole('heading',{name:'Usual route · SIN → KUL'})).toBeVisible();
   await page.getByRole('button',{name:'Close aircraft details'}).click();
   await page.getByRole('button',{name:'Demo',exact:true}).click();
   await trafficButton.click();

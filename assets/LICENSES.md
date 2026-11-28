@@ -9,4 +9,4 @@
 
 CAAS information is referenced in research only. No CAAS charts or copied coordinate tables are redistributed. Published terms were checked; permission for the intended redistribution remains unresolved. The authoritative geometry acceptance gate is explicitly unmet.
 
-- Optional live FlyItalyADSB observations: © FlyItalyADSB, https://flyitalyadsb.com/ , CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/ . Coordinates and units are normalized and reports deduplicated for local display. No live records are distributed in this source archive.
+- Live observations, usual routes and completed flight histories © FlyItalyADSB. The tracker normalizes coordinates and units, removes duplicate observations and selects points within each dated leg. These adapted data are available under CC BY-SA 4.0. [FlyItalyADSB](https://flyitalyadsb.com/) · [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
