@@ -29,3 +29,36 @@ def test_specific_aircraft_dimensions_and_shaded_surfaces():
         assert len(blob)<750_000
         assert "Polyfork" in model["asset"]["copyright"]
         assert model["asset"]["extras"]["licenseUrl"]=="https://creativecommons.org/licenses/by/4.0/"
+
+
+def test_a320_model_fits_flight_axes_and_preserves_source_credit():
+    blob = Path('frontend/public/models/airbus-a320-200.glb').read_bytes()
+    size = struct.unpack_from('<I', blob, 12)[0]
+    model = json.loads(blob[20:20 + size])
+    root = model['scenes'][model['scene']]['nodes'][0]
+    transform = model['nodes'][root]['matrix']
+
+    def bounds(axis, material=None):
+        values = []
+        for mesh in model['meshes']:
+            for primitive in mesh['primitives']:
+                if material and model['materials'][primitive['material']]['name'] != material:
+                    continue
+                position = model['accessors'][primitive['attributes']['POSITION']]
+                values.extend(
+                    sum(value * transform[4 * coordinate + axis] for coordinate, value in enumerate(point))
+                    + transform[12 + axis]
+                    for point in (position['min'], position['max'])
+                )
+        return min(values), max(values)
+
+    tail, nose = bounds(2)
+    assert abs(nose - tail - 37.57) < .001
+    assert abs(tail + nose) < .001
+    left, right = bounds(0)
+    assert 33 < right - left < 35
+    belly, tail_top = bounds(1)
+    assert -3 < belly < -2 and 7 < tail_top < 8
+    assert 15 < bounds(2, 'CockpitGlass')[0] < nose
+    assert 'Airbus5717' in model['asset']['copyright']
+    assert model['asset']['extras']['licenseUrl'] == 'https://creativecommons.org/licenses/by-nc/4.0/'

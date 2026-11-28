@@ -62,6 +62,47 @@ test('regional follow falls back from satellite, pauses stale data and exits whe
  expect(requests).toContain('london');
 });
 
+for (const mobile of [false, true]) test(`follows and picks the rendered A320-200 on ${mobile ? 'mobile' : 'desktop'}`, async ({page}, testInfo) => {
+  if (mobile) await page.setViewportSize({width: 390, height: 844});
+  let receivedModel = false;
+  page.on('response', response => {
+    if (response.url().endsWith('/models/airbus-a320-200.glb') &&
+        response.request().resourceType() === 'xhr' && response.ok()) receivedModel = true;
+  });
+  await page.goto('./');
+  await page.getByRole('button', {name: 'Demo', exact: true}).click();
+  await page.getByRole('button', {name: 'Pause playback'}).click();
+  if (mobile) await page.getByRole('button', {name: 'Toggle aircraft list'}).click();
+  await page.getByRole('button', {name: 'Select SYN 103', exact: true}).click();
+  const details = page.getByRole('region', {name: 'Selected aircraft details'});
+  const panel = page.getByRole('region', {name: '3D aircraft follow'});
+  const canvas = page.locator('.cesium-widget canvas');
+  for (const view of ['chase', 'quarter']) {
+    await details.getByRole('button', {name: 'Follow aircraft'}).click();
+    await expect(panel.getByText(/Airbus A320-200/)).toBeVisible();
+    await expect.poll(() => receivedModel).toBe(true);
+    const controls = panel.getByText('View controls', {exact: true});
+    await controls.click();
+    await expect(panel.getByText(/Model by Airbus5717 · CC BY-NC 4.0/)).toBeVisible();
+    if (view === 'quarter') {
+      await panel.getByLabel('Follow orbit', {exact: true}).fill('125');
+      await panel.getByLabel('Follow elevation', {exact: true}).fill('15');
+      await panel.getByLabel('Follow distance', {exact: true}).fill('110');
+    } else {
+      await expect(panel.getByLabel('Follow distance', {exact: true})).toHaveValue('180');
+    }
+    await controls.click();
+    const path = testInfo.outputPath('a320-' + view + '.png');
+    await expect(async () => {
+      await page.screenshot({path});
+      await canvas.click();
+      await expect(details.getByRole('heading', {name: 'SYN 103'})).toBeVisible({timeout: 750});
+    }).toPass({timeout: 12_000});
+    await expect(page.getByText(/using the generic model|showing position markers/i)).toHaveCount(0);
+    await testInfo.attach('a320-' + view, {path, contentType: 'image/png'});
+  }
+});
+
 test('shows distinct A350 and 777 models with an explicit fallback for other types',async({page})=>{
  const loaded=new Set<string>();page.on('response',r=>{if(r.ok()&&r.url().endsWith('.glb'))loaded.add(r.url().split('/').at(-1)!)});
  await page.goto('./');await page.getByRole('button',{name:'Demo',exact:true}).click();
