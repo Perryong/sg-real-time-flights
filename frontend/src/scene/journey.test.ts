@@ -1,5 +1,9 @@
-import { Cartesian3, Cartographic, Color, Ellipsoid, EllipsoidalOccluder, EntityCollection, HeightReference, JulianDate, Math as CMath, PerspectiveFrustum } from "cesium";
+import {
+  Camera, Cartesian3, Cartographic, Color, Ellipsoid, EllipsoidalOccluder, EntityCollection,
+  GeographicProjection, HeightReference, JulianDate, Math as CMath, PerspectiveFrustum, SceneMode, type Scene,
+} from "cesium";
 import { expect, it } from "vitest";
+import archivedLeg from "../../../tests/fixtures/journeys/sia132-20250518.json";
 import type { JourneyPoint } from "../journey/types";
 import { drawJourney, fitJourneyCamera, journeyPosition, markJourneyPoint } from "./journey";
 
@@ -19,22 +23,28 @@ it("fits across the date line and contains observations far from Singapore", () 
   expect(points.every(observation => globe.isPointVisible(journeyPosition(observation)))).toBe(true);
 });
 
-it("frames elevated and surface observations above a mobile drawer", () => {
-  const points = [point(0, 160, 45000), { ...point(60, -169, 0), lat: 28 }];
-  const viewport = { left: 0.05, right: 0.81, top: 0.18, bottom: 0.49 };
-  const frustum = new PerspectiveFrustum({ aspectRatio: 0.45, fov: Math.PI / 3 });
-  const camera = fitJourneyCamera(points, viewport, frustum)!;
-  const { up, direction } = camera.orientation;
-  const right = Cartesian3.cross(direction, up, new Cartesian3());
+it.each([
+  { name: "date line crossing", points: [point(0, 160, 45000), { ...point(60, -169, 0), lat: 28 }] },
+  { name: "Singapore to Penang", points: archivedLeg.points },
+])("frames $name above the phone details card", ({ points }) => {
+  const viewport = { left: 0, right: 0.85, top: 0.1, bottom: 0.5 };
+  const scene = {
+    mode: SceneMode.SCENE3D, mapProjection: new GeographicProjection(),
+    drawingBufferWidth: 337, drawingBufferHeight: 751,
+  };
+  const camera = new Camera(scene as Scene);
+  const frustum = new PerspectiveFrustum({ aspectRatio: scene.drawingBufferWidth / scene.drawingBufferHeight, fov: Math.PI / 3 });
+  camera.frustum = frustum;
+  camera.flyTo({ ...fitJourneyCamera(points, viewport, frustum)!, duration: 0 });
   for (const observation of points) {
-    const relative = Cartesian3.subtract(journeyPosition(observation), camera.destination, new Cartesian3());
-    const radius = Cartesian3.dot(relative, direction) * Math.tan(frustum.fovy! / 2);
-    const x = 0.5 + Cartesian3.dot(relative, right) / (2 * radius * frustum.aspectRatio!);
-    const y = 0.5 - Cartesian3.dot(relative, up) / (2 * radius);
-    expect(x).toBeGreaterThan(0.05);
-    expect(x).toBeLessThan(0.81);
-    expect(y).toBeGreaterThan(0.18);
-    expect(y).toBeLessThan(0.49);
+    const relative = Cartesian3.subtract(journeyPosition(observation), camera.positionWC, new Cartesian3());
+    const radius = Cartesian3.dot(relative, camera.directionWC) * Math.tan(frustum.fovy! / 2);
+    const x = 0.5 + Cartesian3.dot(relative, camera.rightWC) / (2 * radius * frustum.aspectRatio!);
+    const y = 0.5 - Cartesian3.dot(relative, camera.upWC) / (2 * radius);
+    expect(x).toBeGreaterThan(viewport.left);
+    expect(x).toBeLessThan(viewport.right);
+    expect(y).toBeGreaterThan(viewport.top);
+    expect(y).toBeLessThan(viewport.bottom);
   }
 });
 

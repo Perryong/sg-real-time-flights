@@ -47,13 +47,25 @@ export function fitJourneyCamera(points: JourneyPoint[], viewport: MapViewport, 
   const distance = positions.reduce((distance, point) => Math.max(distance, point.z + 16000),
     Math.max(horizontal.distance, vertical.distance));
   const localCamera = new Cartesian3(horizontal.center(distance), vertical.center(distance), distance);
-  return {
-    destination: Matrix4.multiplyByPoint(localToWorld, localCamera, new Cartesian3()),
-    orientation: {
-      direction: Matrix4.multiplyByPointAsVector(localToWorld, new Cartesian3(0, 0, -1), new Cartesian3()),
-      up: Matrix4.multiplyByPointAsVector(localToWorld, Cartesian3.UNIT_Y, new Cartesian3()),
-    },
-  };
+  const destination = Matrix4.multiplyByPoint(localToWorld, localCamera, new Cartesian3());
+  const destinationFrame = Transforms.eastNorthUpToFixedFrame(destination);
+  const routeToDestination = Matrix4.multiplyTransformation(
+    Matrix4.inverseTransformation(destinationFrame, new Matrix4()), localToWorld, new Matrix4(),
+  );
+  // flyTo discards the bearing of a near-vertical direction. Give it explicit camera angles
+  // relative to east, north and up at the destination.
+  const down = Matrix4.multiplyByPointAsVector(routeToDestination, new Cartesian3(0, 0, -1), new Cartesian3());
+  const north = Matrix4.multiplyByPointAsVector(routeToDestination, Cartesian3.UNIT_Y, new Cartesian3());
+  const east = Matrix4.multiplyByPointAsVector(routeToDestination, Cartesian3.UNIT_X, new Cartesian3());
+  const horizontalDirection = Math.hypot(down.x, down.y);
+  const orientation = horizontalDirection < 1e-12
+    ? { heading: Math.atan2(north.x, north.y), pitch: -Math.PI / 2, roll: 0 }
+    : {
+      heading: Math.atan2(down.x, down.y),
+      pitch: Math.atan2(down.z, horizontalDirection),
+      roll: Math.atan2(-east.z, north.z),
+    };
+  return { destination, orientation };
 }
 
 export function journeyPosition(point: JourneyPoint) {
