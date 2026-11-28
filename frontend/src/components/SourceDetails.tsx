@@ -162,6 +162,9 @@ export default function SourceDetails({
         </div>
         <div className="source-card">
           <h3>Airport & map geometry</h3>
+          <p>Airbus5717 created the A320-200 model. We scaled it to 37.57 m and centered it for the follow camera.</p>
+          <a href="https://sketchfab.com/3d-models/airbus-a320-200-7b8910d3cf824e6399c4ca75a31130ed" target="_blank" rel="noreferrer">Airbus A320-200 · Airbus5717</a>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">A320-200 license · CC BY-NC 4.0</a>
           <p>A350 and 777 visuals adapt Widebody Airliner by Polyfork (CC BY 4.0), with approximate proportions and stowed gear. The decorative sky is Kloofendal 48d Partly Cloudy by Greg Zaal and Jarod Guest, Poly Haven (CC0), sourced through 3DStreet. It does not represent live weather.</p>
           <a href="https://polyfork.dev/asset/widebody-airliner-ae0a5a" target="_blank" rel="noreferrer">Widebody Airliner · Polyfork</a>
           <a href="https://github.com/Perryong/3dstreet" target="_blank" rel="noreferrer">3DStreet environment reference</a>
