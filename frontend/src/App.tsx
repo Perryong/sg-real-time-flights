@@ -30,7 +30,7 @@ import {
 import type { CameraAction } from "./scene/MapScene";
 const MapScene = lazy(() => import("./scene/MapScene"));
 import FollowPanel,{type FollowStyle} from "./components/FollowPanel";
-import {followSample,defaultFollowCamera} from "./data/follow";
+import {angleBetween,followSample,defaultFollowCamera,followElevationLimits} from "./data/follow";
 import {regions,type RegionId} from "./data/regions";
 import ObserverPanel, {type SkyAim} from "./components/ObserverPanel";
 import {isSingaporePin,relativeAircraft,type ObserverPin} from "./data/observer";
@@ -157,6 +157,15 @@ export default function App() {
     if (kind === "runway") {setRegion("singapore");setSelected(null);setView("3d");}
     setAction({ kind, id, nonce: Date.now() });
   };
+  const adjustFollowOrbit = (orbitDelta: number, elevationDelta: number) => {
+    setFollowCamera(camera => {
+      const orbit = orbitDelta ? angleBetween(0, camera.orbit + orbitDelta) : camera.orbit;
+      const { min, max } = followElevationLimits;
+      const elevation = Math.max(min, Math.min(max, camera.elevation + elevationDelta));
+      return orbit === camera.orbit && elevation === camera.elevation
+        ? camera : { ...camera, orbit, elevation };
+    });
+  };
   const reported = feed.snapshot?.status;
   const upstream = reported && feed.mode==='live'
     ? {...reported,upstream_state:effectiveUpstreamState(reported,feed.transport,feed.now)} : reported;
@@ -220,6 +229,7 @@ export default function App() {
             onRadarReady={playback.onReady}
             region={activeRegion}
             followCamera={followCamera}
+            onFollowOrbit={adjustFollowOrbit}
             followStyle={followStyle}
             onSatelliteUnavailable={()=>setFollowStyle("day")}
             observer={observer}
