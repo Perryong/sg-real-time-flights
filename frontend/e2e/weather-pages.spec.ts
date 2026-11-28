@@ -82,6 +82,24 @@ async function highlightedMarker(page: Page) {
 test.describe('responsive map panels', () => {
  test.use({viewport:{width:320,height:568}, hasTouch:true, reducedMotion:'reduce'});
 
+ test('closing the outlook preserves the next keyboard focus', async ({page}) => {
+  await useLiveWeather(page);
+  await page.goto('./');
+  const outlook = page.getByRole('button', {name:'Changi outlook',exact:true});
+  await outlook.click();
+  const close = page.getByRole('button', {name:'Close Changi outlook'});
+  const collapse = page.getByRole('button', {name:'Collapse panels'});
+  await close.evaluate(async el => {
+   el.click();
+   await Promise.resolve();
+   document.querySelector<HTMLButtonElement>('[aria-label="Collapse panels"]')!.focus();
+   await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  await expect(collapse).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('region', {name:'Weather layers'})).toBeHidden();
+ });
+
  test('keeps traffic and weather usable across the same live session', async ({page}, testInfo) => {
   test.setTimeout(120000);
   await page.addInitScript(() => {

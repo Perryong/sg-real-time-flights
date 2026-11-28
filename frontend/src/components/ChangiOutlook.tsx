@@ -27,6 +27,10 @@ export default function ChangiOutlook({load,now,modal,onDismiss}:{load:WeatherLo
   close.current?.focus();
   return ()=>{if(element.open)element.close()};
  },[modal]);
+ const dismiss=()=>{
+  dialog.current?.close();
+  onDismiss();
+ };
 
  const data=load.phase==='ready'&&load.data.layer==='changi_outlook'?load.data:load.phase==='error'?load.cached:undefined;
  const freshness=outlookFreshness(data,now);
@@ -43,11 +47,11 @@ export default function ChangiOutlook({load,now,modal,onDismiss}:{load:WeatherLo
  const temperature=(value:number|null|undefined)=>value==null?unavailable:`${value} °C`;
 
  return <dialog className="changi-outlook panel" id={changiOutlookId} ref={dialog} aria-labelledby="changi-outlook-title"
-  onCancel={event=>{event.preventDefault();onDismiss()}}
-  onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();onDismiss()}}}>
+  onCancel={event=>{event.preventDefault();dismiss()}}
+  onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();dismiss()}}}>
   <header className="outlook-heading">
    <h2 id="changi-outlook-title">Changi Airport, Singapore</h2>
-   <button className="outlook-close" type="button" ref={close} aria-label="Close Changi outlook" onClick={onDismiss}><X size={19}/></button>
+   <button className="outlook-close" type="button" ref={close} aria-label="Close Changi outlook" onClick={dismiss}><X size={19}/></button>
    <p>Modelled weather · <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p>
   </header>
   {status&&<p className="outlook-status" role="status">{status}</p>}

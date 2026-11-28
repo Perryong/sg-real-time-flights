@@ -29,7 +29,7 @@ export default function WeatherControls({id,hidden,compact=false,replayControls,
  useEffect(()=>{if(unavailable||hidden)setOutlookOpen(false)},[unavailable,hidden]);
  const dismissOutlook=()=>{
   setOutlookOpen(false);
-  requestAnimationFrame(()=>outlookButton.current?.focus());
+  outlookButton.current?.focus();
  };
  const enabled=preferences.wind||preferences.radar;
  const toggle=(layer:'wind'|'radar')=>onChange({...preferences,[layer]:!preferences[layer]});
