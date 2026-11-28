@@ -125,6 +125,8 @@ export default function MapScene(props: Props) {
     latest = useRef(props),
     [ready, setReady] = useState(false);
   const radarLayer=useRef<ReturnType<typeof createRadarLayerController>|null>(null);
+  const windLayer=useRef<ReturnType<typeof addRegionalWindLayer>|null>(null);
+  const radarVisible=props.radarFrame!==null;
   const orbitPointer = useRef<{ id: number; anchorX: number; anchorY: number } | null>(null);
   // Cesium can interpret a drag that returns to its starting point as a click.
   const suppressSelection = useRef(false);
@@ -185,8 +187,13 @@ export default function MapScene(props: Props) {
   useEffect(()=>{
     const viewer=viewerRef.current;
     if(!ready||!viewer||viewer.isDestroyed()||!props.windPoints)return;
-    return addRegionalWindLayer(viewer,props.windPoints,reducedMotion);
+    const wind=addRegionalWindLayer(viewer,props.windPoints,reducedMotion);
+    windLayer.current=wind;
+    return()=>{wind.destroy();windLayer.current=null;};
   },[ready,props.windPoints,reducedMotion]);
+  useEffect(()=>{
+    windLayer.current?.setRadarVisible(radarVisible);
+  },[ready,props.windPoints,reducedMotion,radarVisible]);
   useEffect(()=>{
     const viewer=viewerRef.current;
     if(!ready||!viewer||viewer.isDestroyed())return;
