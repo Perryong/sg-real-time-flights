@@ -11,6 +11,7 @@ from .geocoding import router as geocoding_router
 from .weather import router as weather_router
 from .config import Settings, ROOT
 from .provider import AdsbFiProvider, FlyItalyProvider
+from .completed_journey import CompletedJourneyService, completed_journey_response
 from .opensky import OpenSkyGroundProvider
 from .combined import CombinedProvider
 from .service import FeedService
@@ -38,6 +39,7 @@ def create_app(settings=None, provider=None, clock=time.time):
             app.state.feed=feed
             cache=JourneyCache(clock, daily_limit=settings.aeroapi_daily_request_limit)
             app.state.journey=JourneyService(client,settings.aeroapi_api_key,cache,clock)
+            app.state.completed_journey=CompletedJourneyService(client,settings.flyitaly_api_key,clock)
             task=asyncio.create_task(feed.run())
             try: yield
             finally:
@@ -61,6 +63,9 @@ def create_app(settings=None, provider=None, clock=time.time):
         async def observed(callsign, hex_id, observed_at):
             return find_observation(app.state.feed.store.snapshot(clock()), callsign, hex_id, observed_at)
         return await journey_response(request, settings, getattr(app.state, 'journey', None), observed, clock)
+    @app.get('/api/journey/completed')
+    async def completed_journey(request: Request):
+        return await completed_journey_response(request, settings, getattr(app.state, 'completed_journey', None), clock)
     @app.get('/api/airport')
     def airport(): return load_airport()
     @app.get('/api/fixtures/{name}')

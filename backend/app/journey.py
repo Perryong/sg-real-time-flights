@@ -39,22 +39,25 @@ if redis.call('EXISTS', KEYS[1] .. ':denied') == 1 then return -1 end
 if redis.call('EXISTS', KEYS[1] .. ':pause') == 1 then return 0 end
 local day = KEYS[1] .. ':day:' .. math.floor(tonumber(t[1])/86400)
 local recent = KEYS[1] .. ':recent'
-redis.call('ZREMRANGEBYSCORE', recent, '-inf', ms-1000)
-if redis.call('ZCARD', recent) >= 4 or tonumber(redis.call('GET', day) or '0') >= tonumber(ARGV[2]) then return 0 end
+local window = tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', recent, '-inf', ms-window)
+if redis.call('ZCARD', recent) >= tonumber(ARGV[4]) or tonumber(redis.call('GET', day) or '0') >= tonumber(ARGV[2]) then return 0 end
 if redis.call('INCR', day) == 1 then redis.call('EXPIRE', day, 86400) end
 redis.call('ZADD', recent, ms, ARGV[1])
-redis.call('EXPIRE', recent, 2)
+redis.call('EXPIRE', recent, window/1000+1)
 return 1
 """
 
 
 class JourneyCache:
-    def __init__(self, clock=time.time, redis=None, api_key='', daily_limit=100):
+    def __init__(self, clock=time.time, redis=None, api_key='', daily_limit=100, *, provider='', rate_limit=4, window_seconds=1):
         self.clock = clock
         self.redis = redis
-        self.scope = hmac.digest(api_key.encode(), b'changi-journey-cache:v1', hashlib.sha256).hex()[:24]
+        context = 'changi-journey-cache:v1' + (':' + provider if provider else '')
+        self.scope = hmac.digest(api_key.encode(), context.encode(), hashlib.sha256).hex()[:24]
         self.budget_key = f'{JOURNEY_BUDGET}:{self.scope}'
         self.daily_limit = daily_limit
+        self.rate_limit, self.window_seconds = rate_limit, window_seconds
         self.entries = OrderedDict()
         self.recent = deque()
         self.day = None
@@ -96,21 +99,22 @@ class JourneyCache:
 
     async def reserve(self):
         if self.redis is not None:
-            result = await self.redis.command('EVAL', RESERVE, 1, self.budget_key, uuid.uuid4().hex, self.daily_limit)
+            result = await self.redis.command('EVAL', RESERVE, 1, self.budget_key, uuid.uuid4().hex,
+                self.daily_limit, self.window_seconds * 1000, self.rate_limit)
             if result == -1:
-                raise AeroAccessDenied()
+                raise JourneyAccessDenied()
             if result != 1:
                 raise CacheLimited()
             return
         if await self.get('access-denied'):
-            raise AeroAccessDenied()
+            raise JourneyAccessDenied()
         now = self.clock()
         day = int(now // 86400)
         if day != self.day:
             self.day, self.requests = day, 0
-        while self.recent and self.recent[0] <= now - 1:
+        while self.recent and self.recent[0] <= now - self.window_seconds:
             self.recent.popleft()
-        if now < self.paused_until or len(self.recent) >= 4 or self.requests >= self.daily_limit:
+        if now < self.paused_until or len(self.recent) >= self.rate_limit or self.requests >= self.daily_limit:
             raise CacheLimited()
         self.requests += 1
         self.recent.append(now)
@@ -126,12 +130,29 @@ def empty(reason, retryable=False):
     return {'journey':None, 'reason':reason, **({'retryable':True} if retryable else {})}
 
 
-class AeroAccessDenied(Exception):
+class JourneyAccessDenied(Exception):
     pass
 
 
 class AeroFlightWithheld(Exception):
     pass
+
+
+async def read_journey_payload(response):
+    raw = bytearray()
+    async for chunk in response.aiter_bytes():
+        raw.extend(chunk)
+        if len(raw) > BODY_LIMIT:
+            raise ValueError('Journey response is too large')
+    body = json.loads(raw)
+    if not isinstance(body, dict):
+        raise ValueError('Journey response is not an object')
+    return body
+
+
+def retry_after_seconds(response):
+    retry = response.headers.get('Retry-After', '')[:10]
+    return min(86400, max(60, int(retry) if retry.isdecimal() and retry.isascii() else 60))
 
 
 def instant(value):
@@ -340,25 +361,16 @@ class JourneyService:
             async with self.client.stream('GET', BASE_URL + path, params=params,
                     headers={'x-apikey':self.api_key}, follow_redirects=False) as response:
                 if response.status_code in (401, 403):
-                    raise AeroAccessDenied()
+                    raise JourneyAccessDenied()
                 if response.status_code == 400:
                     raise AeroFlightWithheld()
                 if response.status_code == 429:
-                    retry = response.headers.get('Retry-After', '')[:10]
-                    await self.cache.pause(min(86400, max(60, int(retry) if retry.isdecimal() and retry.isascii() else 60)))
+                    await self.cache.pause(retry_after_seconds(response))
                     raise CacheLimited()
                 if response.status_code == 404:
                     return {}
                 response.raise_for_status()
-                raw = bytearray()
-                async for chunk in response.aiter_bytes():
-                    raw.extend(chunk)
-                    if len(raw) > BODY_LIMIT:
-                        raise ValueError('AeroAPI response is too large')
-        body = json.loads(raw)
-        if not isinstance(body, dict):
-            raise ValueError('AeroAPI response is not an object')
-        return body
+                return await read_journey_payload(response)
 
     async def lookup(self, callsign, hex_id, observed_at, bookmark, evidence: Observation | None):
         now = self.clock()
@@ -446,7 +458,7 @@ class JourneyService:
             if flight_id is None:
                 await self.cache.put(key, {'id':None}, REFRESH_SECONDS)
             return unavailable(NO_MATCH)
-        except AeroAccessDenied:
+        except JourneyAccessDenied:
             try:
                 await self.cache.put('access-denied', {'denied':True}, 900)
             except CacheUnavailable:

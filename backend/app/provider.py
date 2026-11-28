@@ -5,6 +5,8 @@ import httpx
 from .normalize import normalize_record, normalize_route, number
 from .contracts import Observation
 
+FLYITALY_API_URL = 'https://api.flyitalyadsb.com/v2'
+
 @dataclass
 class ProviderResult:
     observations: list[Observation]
@@ -65,7 +67,7 @@ class AdsbFiProvider:
         return ProviderResult(observations,invalid)
 
 class FlyItalyProvider(AdsbFiProvider):
-    URL = 'https://api.flyitalyadsb.com/v2/lat/1.3644/lon/103.9915/dist/500?with=route'
+    URL = FLYITALY_API_URL + '/lat/1.3644/lon/103.9915/dist/500?with=route'
     NAME = 'flyitalyadsb'
     TIME_DIVISOR = 1
 
