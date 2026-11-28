@@ -1772,7 +1772,18 @@ input {
  .workspace:has(.details-panel,.lost-notice) .weather-controls{right:calc(var(--aircraft-details-right) + var(--aircraft-details-width) + 12px)}
 }
 @media(min-width:801px) and (max-width:1150px){
- .workspace:has(.details-panel,.lost-notice) .weather-controls:has(.weather-details[open]) .changi-outlook{top:calc(100% + 8px);right:0;max-height:max(140px,calc(100dvh - 435px))}
+ .weather-controls:has(.weather-details[open]) .changi-outlook{top:calc(100% + 8px);right:0;max-height:max(140px,calc(100dvh - 435px))}
+ .sidebar-open .workspace:has(.details-panel,.lost-notice) .weather-controls:has(.changi-outlook){
+   right:var(--aircraft-details-right);
+   max-height:calc(50% - 62px);
+   overflow:auto;
+ }
+ .sidebar-open .workspace:has(.details-panel,.lost-notice) .changi-outlook{
+   position:static;
+   width:100%;
+   max-height:none;
+ }
+ .sidebar-open .workspace:has(.changi-outlook) :is(.details-panel,.lost-notice){top:calc(50% + 8px)}
 }
 .outlook-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 8px}
 .outlook-heading h2{font-size:18px;line-height:1.2;font-weight:650;letter-spacing:-.02em}

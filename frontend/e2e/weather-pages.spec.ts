@@ -184,3 +184,27 @@ for (const mobile of [false, true]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
+
+test('compact desktop keeps aircraft selectable with wind and outlook open', async ({page}) => {
+  await page.setViewportSize({width:801, height:900});
+  const frame = JSON.parse(fs.readFileSync('../tests/fixtures/scenarios/changi-demo.json', 'utf8')).frames[0];
+  const now = Date.now() / 1000;
+  Object.assign(frame, {mode:'live', scenario_time:null, server_time:now});
+  Object.assign(frame.status, {mode:'live', upstream_state:'healthy', last_success:now, movements:null});
+  for (const track of frame.tracks) {
+    Object.assign(track.latest, {mode:'live', position_time:now, provider_time:now, receipt_time:now});
+    track.history = [track.latest];
+  }
+  await page.route('**/api/aircraft*', route => route.fulfill({json:frame}));
+  await page.route('**/api/weather?*', route => route.fulfill({status:503, json:{error:'Weather unavailable'}}));
+  await page.goto('./');
+  await page.getByRole('button', {name:'Wind', exact:true}).click();
+  await page.getByRole('button', {name:'Changi outlook', exact:true}).click();
+  const outlook = page.getByRole('dialog', {name:'Changi Airport, Singapore'});
+  for (const track of frame.tracks.slice(0, 2)) {
+    const callsign = track.latest.callsign;
+    await page.getByRole('button', {name:'Select ' + callsign, exact:true}).click({timeout:5000});
+    await expect(page.getByRole('region', {name:'Selected aircraft details'})).toContainText(callsign);
+    await expect(outlook).toBeVisible();
+  }
+});

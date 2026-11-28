@@ -63,8 +63,7 @@ export function addRegionalWindLayer(viewer:Viewer,points:WindPoint[],reducedMot
       vertexFormat:PolylineMaterialAppearance.VERTEX_FORMAT}));
     const st=geometry?.attributes.st?.values;
     if(!geometry||!(st instanceof Float32Array)) return [];
-    // Pack a stable per-trail phase offset next to its 0–1 texture coordinate.
-    // This keeps all trails in one draw batch even as their pulses start at different times.
+    // Pack the trail index into the texture coordinate so the shader can stagger pulses in one draw batch.
     for(let i=0;i<st.length;i+=2) st[i]+=2*index;
     return [new GeometryInstance({geometry})];
   });
