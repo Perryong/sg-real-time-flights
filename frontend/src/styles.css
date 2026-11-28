@@ -1782,6 +1782,7 @@ input {
    position:static;
    width:100%;
    max-height:none;
+   overflow:visible;
  }
  .sidebar-open .workspace:has(.changi-outlook) :is(.details-panel,.lost-notice){top:calc(50% + 8px)}
 }
