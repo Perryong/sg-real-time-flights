@@ -1,4 +1,4 @@
-import {ArcType, Cartesian3, Color, Credit, GeometryInstance, Material, Matrix4, PolylineGeometry, PolylineMaterialAppearance, Primitive, PrimitiveCollection, Rectangle, SingleTileImageryProvider, Transforms, type ImageryLayer, type Viewer} from 'cesium';
+import {ArcType, Cartesian3, Color, Credit, GeometryInstance, Material, Matrix4, PolylineGeometry, PolylineMaterialAppearance, Primitive, PrimitiveCollection, Rectangle, Resource, SingleTileImageryProvider, Transforms, type ImageryLayer, type Viewer} from 'cesium';
 import type {RadarFrame, WindPoint, WindStation} from '../data/weather';
 import {WIND_SPEED_STOPS} from '../data/windScale';
 import {buildWindField, rasterWindField, regionalWindBounds, windPaths} from './windField';
@@ -97,8 +97,36 @@ export function addRegionalWindLayer(viewer:Viewer,points:WindPoint[],reducedMot
   };
 }
 
+// Both tiles are georeferenced by their original bounds. Only their displayed pixels change.
+function circularFootprint(context:CanvasRenderingContext2D,wind:boolean) {
+  const {width,height}=context.canvas;
+  context.save();
+  context.scale(width,height);
+  const fade=context.createRadialGradient(.5,.5,0,.5,.5,.5);
+  fade.addColorStop(0,'white');
+  fade.addColorStop(wind ? .44 : .985,'white');
+  if(wind) fade.addColorStop(.68,'rgba(255,255,255,.27)');
+  fade.addColorStop(wind ? .84 : 1,'transparent');
+  context.globalCompositeOperation='destination-in';
+  context.fillStyle=fade;
+  context.fillRect(0,0,1,1);
+  context.globalCompositeOperation='source-over';
+  context.beginPath();
+  context.arc(.5,.5,.498,0,2*Math.PI);
+  if(wind){
+    context.globalCompositeOperation='destination-over';
+    context.fillStyle='rgba(137,161,172,.16)';
+    context.fill();
+    context.globalCompositeOperation='source-over';
+  }
+  context.lineWidth=.003;
+  context.strokeStyle=wind ? '#64d9d2' : '#b3ccd5';
+  context.stroke();
+  context.restore();
+}
+
 function addWindShade(viewer:Viewer,field:ReturnType<typeof buildWindField>):ImageryLayer|undefined {
-  const size=256;
+  const size=384;
   const canvas=document.createElement('canvas');
   canvas.width=canvas.height=size;
   const context=canvas.getContext('2d');
@@ -106,6 +134,7 @@ function addWindShade(viewer:Viewer,field:ReturnType<typeof buildWindField>):Ima
   const image=context.createImageData(size,size);
   image.data.set(rasterWindField(field,size));
   context.putImageData(image,0,0);
+  circularFootprint(context,true);
   const {west,south,east,north}=regionalWindBounds;
   const provider=new SingleTileImageryProvider({url:canvas.toDataURL(),tileWidth:size,tileHeight:size,
     rectangle:Rectangle.fromDegrees(west,south,east,north)});
@@ -176,32 +205,29 @@ function addWindGlyphs(viewer:Viewer,points:WindPoint[],reducedMotion:boolean,ar
   };
 }
 
-export function addRadarLayer(viewer:Viewer,frame:RadarFrame,opacity:number,onError:()=>void):()=>void {
-  let disposed = false;
-  let layer:ImageryLayer|undefined;
-  let removeError:(()=>void)|undefined;
-  const cleanup = ()=>{
-    if (disposed) return;
-    disposed = true;
-    removeError?.();
-    if (layer && !viewer.isDestroyed()) viewer.imageryLayers.remove(layer,true);
-  };
-  const fail = ()=>{
-    if (disposed || viewer.isDestroyed()) return;
-    cleanup();
-    onError();
-  };
-  void SingleTileImageryProvider.fromUrl(frame.url,{
+async function radarProvider(frame:RadarFrame) {
+  const image=await new Resource(frame.url).fetchImage();
+  if(!image) throw new Error('Radar image unavailable');
+  const canvas=document.createElement('canvas');
+  canvas.width=image.width;
+  canvas.height=image.height;
+  const context=canvas.getContext('2d');
+  if(!context) throw new Error('Radar canvas unavailable');
+  context.drawImage(image,0,0);
+  circularFootprint(context,false);
+  const provider=new SingleTileImageryProvider({
+    url:frame.url,tileWidth:canvas.width,tileHeight:canvas.height,
     rectangle:Rectangle.fromDegrees(frame.west,frame.south,frame.east,frame.north),
     credit:new Credit('<a href="https://data.gov.sg/datasets/d_418e9ac3414fd927b7405631e0a7bc82/view">Rain radar: Meteorological Service Singapore / NEA</a>',true),
-  }).then(provider=>{
-    if (disposed || viewer.isDestroyed()) return;
-    removeError = provider.errorEvent.addEventListener(fail);
-    // Append to preserve the map style controls' fixed base imagery indices 0–2.
-    layer = viewer.imageryLayers.addImageryProvider(provider);
-    layer.alpha = Math.max(0,Math.min(1,opacity));
-  }).catch(fail);
-  return cleanup;
+  });
+  provider.requestImage=async()=>canvas;
+  return provider;
+}
+
+export function addRadarLayer(viewer:Viewer,frame:RadarFrame,opacity:number,onError:()=>void):()=>void {
+  const controller=createRadarLayerController(viewer);
+  controller.show(frame,opacity,()=>{},onError);
+  return controller.destroy;
 }
 
 type RadarTarget = {
@@ -291,10 +317,7 @@ export function createRadarLayerController(viewer:Viewer) {
     if (pending?.url === frame.url) return;
     const load = {url:frame.url};
     pending = load;
-    void SingleTileImageryProvider.fromUrl(frame.url,{
-      rectangle:Rectangle.fromDegrees(frame.west,frame.south,frame.east,frame.north),
-      credit:new Credit('<a href="https://data.gov.sg/datasets/d_418e9ac3414fd927b7405631e0a7bc82/view">Rain radar: Meteorological Service Singapore / NEA</a>',true),
-    }).then(provider=>{
+    void radarProvider(frame).then(provider=>{
       if (disposed || pending !== load) return;
       if (viewer.isDestroyed()) {destroy();return;}
       pending = null;

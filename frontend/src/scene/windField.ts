@@ -6,7 +6,7 @@ type Position = {lon:number;lat:number};
 type Velocity = {east:number;north:number};
 type Corner = WindPoint & Velocity;
 type Bounds = {west:number;south:number;east:number;north:number};
-type Cell = Bounds & {corners:[Corner,Corner,Corner,Corner]};
+type Cell = Bounds & {row:number;column:number;corners:[Corner,Corner,Corner,Corner]};
 type WindField = {cells:Cell[];isolated:WindPoint[]};
 
 const center=regions.singapore;
@@ -45,7 +45,7 @@ export function buildWindField(points:readonly WindPoint[]):WindField {
     if(!se||!nw||!ne) continue;
     const corners:[Corner,Corner,Corner,Corner]=[sw,se,nw,ne];
     const lons=corners.map(p=>p.lon), lats=corners.map(p=>p.lat);
-    cells.push({corners,west:Math.min(...lons),east:Math.max(...lons),south:Math.min(...lats),north:Math.max(...lats)});
+    cells.push({row,column,corners,west:Math.min(...lons),east:Math.max(...lons),south:Math.min(...lats),north:Math.max(...lats)});
     for(const corner of corners) covered.add(corner.id);
   }
   return {cells,isolated:points.filter(p=>!covered.has(p.id))};
@@ -96,7 +96,13 @@ export function rasterWindField(field:WindField,size:number):Uint8ClampedArray<A
   const {west,south,east,north}=regionalWindBounds;
   const lonStep=(east-west)/size, latStep=(north-south)/size;
   const wind={east:0,north:0};
+  const covered=new Set(field.cells.map(cell=>cell.corners[0].id));
   for(const cell of field.cells){
+    const {row,column}=cell;
+    const openWest=!covered.has(`regional:${row}:${column-1}`);
+    const openEast=!covered.has(`regional:${row}:${column+1}`);
+    const openSouth=!covered.has(`regional:${row-1}:${column}`);
+    const openNorth=!covered.has(`regional:${row+1}:${column}`);
     const left=Math.max(0,Math.floor((cell.west-west)/lonStep));
     const right=Math.min(size,Math.ceil((cell.east-west)/lonStep));
     const top=Math.max(0,Math.floor((north-cell.north)/latStep));
@@ -114,7 +120,10 @@ export function rasterWindField(field:WindField,size:number):Uint8ClampedArray<A
         pixels[offset]=a.red+(b.red-a.red)*t;
         pixels[offset+1]=a.green+(b.green-a.green)*t;
         pixels[offset+2]=a.blue+(b.blue-a.blue)*t;
-        pixels[offset+3]=255;
+        // Feather only unsupported edges. Neighboring model cells meet at full opacity.
+        const edge=Math.min(openWest ? lon-cell.west : Infinity,openEast ? cell.east-lon : Infinity,
+          openSouth ? lat-cell.south : Infinity,openNorth ? cell.north-lat : Infinity);
+        pixels[offset+3]=255*Math.min(1,edge/.28);
       }
     }
   }
