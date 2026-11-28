@@ -35,7 +35,8 @@ async function visibleMarkers(page: Page) {
     const amber = [];
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i], g = data[i + 1], b = data[i + 2];
-      const selected = Math.abs(r - 197) <= 4 && Math.abs(g - 246) <= 4 && Math.abs(b - 140) <= 4;
+      // The map's edge gradient dims the lime marker on compact screens.
+      const selected = g >= 200 && Math.abs(r / g - 197 / 246) < 0.015 && Math.abs(b / g - 140 / 246) < 0.015;
       const ordinary = r >= 212 && r <= 239 && r - g >= 33 && g - b >= 70 && b >= 104 && b <= 120;
       if (!selected && !ordinary) continue;
       const point = { x: (i / 4) % width, y: Math.floor(i / 4 / width) };
@@ -71,10 +72,15 @@ async function pan(page: Page, mobile: boolean, start: { x: number; y: number })
   await session.detach();
 }
 
-for (const mobile of [false, true]) {
-  test.describe(mobile ? "touch" : "desktop", () => {
+for (const [name, width, height] of [
+  ["desktop", 1440, 900],
+  ["touch", 390, 844],
+  ["compact touch", 320, 568],
+] as const) {
+  const mobile = name !== "desktop";
+  test.describe(name, () => {
     test.use({
-      viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+      viewport: { width, height },
       hasTouch: mobile,
       isMobile: mobile,
       reducedMotion: "reduce",

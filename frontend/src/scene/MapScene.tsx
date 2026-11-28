@@ -65,11 +65,12 @@ function locateAircraft(viewer: Viewer, position: Cartesian3) {
   const details = panel(".details-panel");
   const narrow = matchMedia("(max-width: 800px)").matches;
   const left = narrow ? bounds.left : panel(".traffic-panel")?.right ?? bounds.left;
-  const right = narrow ? panel(".map-controls")?.left ?? bounds.right : details?.left ?? bounds.right;
+  let right = narrow ? panel(".map-controls")?.left ?? bounds.right : details?.left ?? bounds.right;
   const bottom = narrow ? details?.top ?? bounds.bottom : bounds.bottom;
-  const top = narrow
-    ? Math.min(panel(".weather-controls")?.bottom ?? bounds.top, bottom - 60)
-    : bounds.top;
+  const weather = narrow ? panel(".weather-controls") : undefined;
+  const top = Math.min(weather?.bottom ?? bounds.top, bottom - 60);
+  // If the marker cannot fit below Weather, place it to the left of Weather.
+  if (weather && top < weather.bottom) right = Math.min(right, weather.left);
   const focus = new Cartesian2((left + right) / 2 - bounds.left, (top + bottom) / 2 - bounds.top);
 
   const pitch = Math.min(camera.pitch, CMath.toRadians(-35));
