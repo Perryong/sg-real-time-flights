@@ -74,7 +74,7 @@ test("follow, pause, seek, lighting and keyboard exit preserve observation time"
     .getByRole("button", { name: "Follow aircraft", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "Stop following" }),
+    page.getByRole("button", { name: "Exit aircraft follow" }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(
@@ -138,7 +138,7 @@ test("heartbeat cannot renew a lost position or keep following it", async ({
   );
   await expect(page.getByText(/Track lost ·/)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Stop following" }),
+    page.getByRole("button", { name: "Exit aircraft follow" }),
   ).toHaveCount(0);
 });
 test("GPU failure retains a readable functional aircraft list", async ({

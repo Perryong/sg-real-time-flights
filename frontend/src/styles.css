@@ -214,6 +214,8 @@ input {
   height: 25px;
 }
 .workspace {
+  --aircraft-details-right: 84px;
+  --aircraft-details-width: 320px;
   position: relative;
   flex: 1;
   min-height: 0;
@@ -902,9 +904,9 @@ input {
 .details-panel {
   position: absolute;
   top: 77px;
-  right: 84px;
+  right: var(--aircraft-details-right);
   bottom: 72px;
-  width: 320px;
+  width: var(--aircraft-details-width);
   z-index: 6;
   overflow: auto;
   scrollbar-width: thin;
@@ -1319,8 +1321,8 @@ input {
   .traffic-identity strong {
     font-size: 13px;
   }
-  .details-panel {
-    width: 342px;
+  .workspace {
+    --aircraft-details-width: 342px;
   }
   .topbar {
     height: 80px;
@@ -1336,9 +1338,9 @@ input {
   .map-topline {
     justify-content: flex-end;
   }
-  .details-panel {
-    width: 285px;
-    right: 80px;
+  .workspace {
+    --aircraft-details-width: 285px;
+    --aircraft-details-right: 80px;
   }
   .presentation-label {
     display: none;
@@ -1741,33 +1743,98 @@ input {
 .follow-route.route-unknown>strong {display:none}
 .follow-route.route-unknown>span svg {display:none}
 
-.weather-controls{position:absolute;right:84px;top:62px;z-index:6;width:226px;border-radius:8px;background:#101e28f2;overflow:hidden}
+.weather-controls{position:absolute;right:84px;top:62px;z-index:7;width:302px;border-radius:8px;background:#101e28f2}
 .weather-buttons{display:flex;padding:4px;gap:4px}
-.weather-buttons button{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-height:38px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);font-size:12px;cursor:pointer}
-.weather-buttons button[aria-pressed=true]{color:#c6f29a;background:#293c2b;border-color:#60764b}
+.weather-buttons button{display:flex;align-items:center;justify-content:center;gap:5px;flex:1;min-width:0;min-height:38px;padding:0 5px;border:1px solid transparent;border-radius:5px;background:transparent;color:#adbec7;font-size:12px;line-height:1.15;cursor:pointer}
+.weather-buttons button:first-child{flex:.78}
+.weather-buttons button:last-child{flex:1.3}
+.weather-buttons button:not(:disabled):hover{background:#23323c;color:#f0f4f2}
+.weather-buttons button[aria-pressed=true],.weather-buttons button[aria-expanded=true]{color:#c6f29a;background:#293c2b;border-color:#60764b}
 .weather-buttons button:disabled{opacity:.5;cursor:default}
 .weather-details{padding:0 10px 10px;max-height:280px;overflow:auto}
 .weather-details summary{font-size:10px;color:var(--muted);cursor:pointer;padding:5px 0}
 .weather-legend{border-top:1px solid #34434a;padding:9px 0 6px;font-size:11px}
 .weather-legend strong{font-weight:600}.weather-legend p,.weather-note{font-size:10px;line-height:1.5;color:#bccbd3;margin:5px 0}.weather-note{padding:0 10px 6px}
 .weather-legend small{font-size:9px;color:var(--muted)}
-.wind-scale,.rain-labels{display:flex;justify-content:space-between;font-size:10px;margin:7px 0}
-.wind-scale span:nth-child(1){color:#74d8d2}.wind-scale span:nth-child(2){color:#f3d37a}.wind-scale span:nth-child(3){color:#f49b79}
+.wind-scale{height:6px;border-radius:3px;margin:8px 9px 4px}
+.wind-scale-key{position:relative;height:28px;color:#c1d0d7;font-size:10px;font-variant-numeric:tabular-nums}
+.wind-scale-key>span{position:absolute;bottom:0;right:0}
+.wind-scale-labels{list-style:none;position:relative;margin:0 9px;padding:0}
+.wind-scale-labels li{position:absolute;transform:translateX(-50%)}
+.rain-labels{display:flex;justify-content:space-between;font-size:10px;margin:7px 0}
 .rain-scale{height:6px;border-radius:3px;margin-top:8px;background:linear-gradient(90deg,#00837d,#00babf,#00ffff,#008045,#00ca11,#00ff00,#ffff00,#ffc600,#ff8a00,#ff1f00,#c10000)}
 .weather-opacity{display:flex;gap:8px;align-items:center;font-size:10px;flex-wrap:wrap}.weather-opacity output{margin-left:auto}.weather-opacity input{width:100%;accent-color:#bbec87}
 .weather-credit{font-size:9px;color:#9eafb9}.app.following .weather-controls{top:14px;right:24px}
-@media(max-width:799px){.weather-controls{top:51px;right:12px;width:175px}.weather-buttons button{font-size:11px;gap:4px;min-height:36px}.weather-details{max-height:200px}.weather-controls:has(details[open]){right:54px;top:100px}.app.following .weather-controls{top:12px;right:12px}.app.following .weather-details{max-height:180px}}
 .weather-legend > .weather-credit{display:block;margin-top:5px}
-@media(max-width:799px){
- .app:not(.sidebar-closed):not(.following) .weather-details{display:none}
- .app:not(.sidebar-closed):not(.following) .weather-controls{top:51px;right:12px}
+.changi-outlook{position:absolute;inset:calc(100% + 8px) 0 auto auto;margin:0;width:346px;max-width:none;max-height:min(570px,calc(100dvh - 235px));overflow:auto;overscroll-behavior:contain;padding:14px 16px;border:1px solid #3c505a;border-radius:12px;background:#101e28;color:#e6eeef;font-size:13px;scrollbar-width:thin;scrollbar-color:#475c65 #101e28}
+.weather-controls:has(.weather-details[open]) .changi-outlook{top:0;right:calc(100% + 10px)}
+@media(min-width:801px){
+ .workspace:has(.details-panel,.lost-notice) .weather-controls{right:calc(var(--aircraft-details-right) + var(--aircraft-details-width) + 12px)}
 }
+@media(min-width:801px) and (max-width:1150px){
+ .weather-controls:has(.weather-details[open]) .changi-outlook{top:calc(100% + 8px);right:0;max-height:max(140px,calc(100dvh - 435px))}
+ .sidebar-open .workspace:has(.details-panel,.lost-notice) .weather-controls:has(.changi-outlook){
+   right:var(--aircraft-details-right);
+   max-height:calc(50% - 62px);
+   overflow:auto;
+ }
+ .sidebar-open .workspace:has(.details-panel,.lost-notice) .changi-outlook{
+   position:static;
+   width:100%;
+   max-height:none;
+ }
+ .sidebar-open .workspace:has(.changi-outlook) :is(.details-panel,.lost-notice){top:calc(50% + 8px)}
+}
+.outlook-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 8px}
+.outlook-heading h2{font-size:18px;line-height:1.2;font-weight:650;letter-spacing:-.02em}
+.outlook-heading p,.outlook-timestamp{color:#b7c8d0;font-size:11px;line-height:1.4}
+.outlook-heading a{text-decoration:underline;text-underline-offset:3px}
+.outlook-heading a:hover{color:#f1f8f7}
+.outlook-close{grid-row:span 2;display:grid;place-items:center;width:36px;height:36px;padding:0;border-radius:6px;color:#d4e2e5;background:#1d2d37}
+.outlook-close:hover{background:#2b3e48}
+.outlook-status{margin-top:12px;padding:8px 10px;border-radius:6px;background:#24333a;color:#f1d195;font-size:12px;line-height:1.35}
+.outlook-section{border-top:1px solid #344650;margin-top:13px;padding-top:11px}
+.outlook-section h3{font-size:13px;font-weight:650;margin-bottom:4px}
+.outlook-timestamp time{white-space:nowrap}
+.outlook-timestamp strong{margin-left:6px;color:#f1d195;font-weight:650}
+.outlook-current{margin:9px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.outlook-current dt{color:#b7c8d0;font-size:11px;line-height:1.35}
+.outlook-current dd{margin:2px 0 0;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.outlook-days{list-style:none;margin:6px 0 0;padding:0}
+.outlook-days li{display:grid;grid-template-columns:75px minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 0;font-size:12px;line-height:1.3}
+.outlook-days li+li{border-top:1px solid #2c3e46}
+.outlook-days time{display:grid;gap:2px}
+.outlook-days time span,.outlook-temperatures dt{color:#b7c8d0;font-size:11px}
+.outlook-temperatures{display:grid;gap:2px;margin:0;font-variant-numeric:tabular-nums}
+.outlook-temperatures div{display:grid;grid-template-columns:25px minmax(50px,1fr);gap:5px}
+.outlook-temperatures dd{margin:0;text-align:right;white-space:nowrap}
+@media(max-width:800px){
+ .workspace{--aircraft-panel-top:111px}
+ .workspace:has(.weather-note){--aircraft-panel-top:142px}
+ .left-panel-wrap{top:var(--aircraft-panel-top);width:min(273px,calc(100% - 77px))}
+ .collapse-panel{top:calc(18px - var(--aircraft-panel-top))}
+ .lost-notice{top:var(--aircraft-panel-top)}
+ .weather-controls{top:51px;right:12px;width:min(224px,calc(100% - 166px))}
+ .weather-buttons button{font-size:11px;gap:4px;min-height:44px;padding:1px 3px}
+ .weather-details{max-height:200px}
+ .weather-controls:has(details[open]){right:54px;top:100px;width:min(224px,calc(100% - 119px))}
+ .app.following .weather-controls{top:12px;right:12px;width:224px}
+ .app.following .weather-details{max-height:180px}
+ .app:not(.sidebar-closed):not(.following) .weather-details{display:none}
+ .app:not(.sidebar-closed):not(.following) .weather-controls{top:51px;right:12px;width:min(224px,calc(100% - 166px))}
+ .changi-outlook,.weather-controls:has(.weather-details[open]) .changi-outlook{position:fixed;inset:auto 0 0;margin:0 auto;width:min(100%,440px);max-height:90dvh;padding:16px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));border-radius:15px 15px 0 0}
+ .changi-outlook::backdrop{background:#06121bc7}
+ .outlook-close{width:44px;height:44px}
+ .outlook-days li{padding:10px 0}
+}
+@media(max-width:420px){.weather-buttons button svg{display:none}.mobile-region-picker{max-width:94px}}
 .radar-history-open,.radar-replay-actions button{border:1px solid #61704d;border-radius:5px;padding:7px 10px;color:#d9efb2;background:#233125;font-size:11px;min-height:34px}
 .radar-history-open{margin-top:4px;width:100%}
 .radar-history-banner{position:absolute;z-index:9;bottom:85px;left:50%;transform:translateX(-50%);width:min(400px,calc(100% - 90px));padding:12px;border-radius:9px;background:#14222af5;border-color:#8b7350;font-size:11px}
 .radar-replay-heading,.radar-replay-actions,.radar-replay-range{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .radar-replay-heading strong{font-size:10px;letter-spacing:1px;color:#f2cc82}.radar-replay-heading span{font-size:10px;color:#c1ced1}
 .radar-replay-time{margin:8px 0;color:#e1e9eb;font-size:12px}.radar-replay-actions button{flex:1}.radar-history-banner input{width:100%;accent-color:#e6c481;margin:12px 0 5px}.radar-replay-range{font-size:9px;color:#b6c4c8}.radar-replay-status{font-size:10px;line-height:1.4;margin:8px 0 0;color:#d0c7ae}
+.radar-replay-wind{margin:-3px 0 8px;color:#b7c8d0;font-size:11px}
 .app.following .radar-history-banner{bottom:calc(var(--follow-panel-height,320px) + 15px)}
 @media(max-width:799px){
  .radar-history-banner{left:64px;right:12px;transform:none;width:auto;bottom:78px;padding:10px}

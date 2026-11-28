@@ -56,9 +56,10 @@ function locateAircraft(viewer: Viewer, position: Cartesian3) {
   const projected = SceneTransforms.worldToWindowCoordinates(scene, position);
   const globe = new EllipsoidalOccluder(scene.globe.ellipsoid, camera.positionWC);
   const markerOffsets = [[0, 0], [-24, -15], [24, -15], [-24, 30], [24, 30]];
-  if (projected && globe.isPointVisible(position) && markerOffsets.every(([x, y]) =>
-    document.elementFromPoint(bounds.left + projected.x + x, bounds.top + projected.y + y) === canvas,
-  )) return;
+  const markerFits = (x: number, y: number) => markerOffsets.every(([dx, dy]) =>
+    document.elementFromPoint(x + dx, y + dy) === canvas,
+  );
+  if (projected && globe.isPointVisible(position) && markerFits(bounds.left + projected.x, bounds.top + projected.y)) return;
 
   const workspace = canvas.closest(".workspace");
   const panel = (selector: string) => workspace?.querySelector(selector)?.getBoundingClientRect();
@@ -71,7 +72,22 @@ function locateAircraft(viewer: Viewer, position: Cartesian3) {
   const top = Math.min(weather?.bottom ?? bounds.top, bottom - 60);
   // If the marker cannot fit below Weather, place it to the left of Weather.
   if (weather && top < weather.bottom) right = Math.min(right, weather.left);
-  const focus = new Cartesian2((left + right) / 2 - bounds.left, (top + bottom) / 2 - bounds.top);
+  const focus = new Cartesian2((left + right) / 2, (top + bottom) / 2);
+  if (!markerFits(focus.x, focus.y)) {
+    // The open outlook and radar replay can cover the middle of the map.
+    const fractions = [0.5, 0.25, 0.75, 0.125, 0.875];
+    for (const row of fractions) {
+      const y = top + row * (bottom - top);
+      const x = fractions.map(column => left + column * (right - left)).find(x => markerFits(x, y));
+      if (x !== undefined) {
+        focus.x = x;
+        focus.y = y;
+        break;
+      }
+    }
+  }
+  focus.x -= bounds.left;
+  focus.y -= bounds.top;
 
   const pitch = Math.min(camera.pitch, CMath.toRadians(-35));
   const altitude = Cartographic.fromCartesian(position).height;
@@ -125,6 +141,8 @@ export default function MapScene(props: Props) {
     latest = useRef(props),
     [ready, setReady] = useState(false);
   const radarLayer=useRef<ReturnType<typeof createRadarLayerController>|null>(null);
+  const windLayer=useRef<ReturnType<typeof addRegionalWindLayer>|null>(null);
+  const radarVisible=props.radarFrame!==null;
   const orbitPointer = useRef<{ id: number; anchorX: number; anchorY: number } | null>(null);
   // Cesium can interpret a drag that returns to its starting point as a click.
   const suppressSelection = useRef(false);
@@ -185,8 +203,13 @@ export default function MapScene(props: Props) {
   useEffect(()=>{
     const viewer=viewerRef.current;
     if(!ready||!viewer||viewer.isDestroyed()||!props.windPoints)return;
-    return addRegionalWindLayer(viewer,props.windPoints,reducedMotion);
+    const wind=addRegionalWindLayer(viewer,props.windPoints,reducedMotion);
+    windLayer.current=wind;
+    return()=>{wind.destroy();windLayer.current=null;};
   },[ready,props.windPoints,reducedMotion]);
+  useEffect(()=>{
+    windLayer.current?.setRadarVisible(radarVisible);
+  },[ready,props.windPoints,reducedMotion,radarVisible]);
   useEffect(()=>{
     const viewer=viewerRef.current;
     if(!ready||!viewer||viewer.isDestroyed())return;

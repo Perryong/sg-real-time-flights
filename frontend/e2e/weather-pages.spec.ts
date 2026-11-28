@@ -1,5 +1,20 @@
 import {test,expect} from '@playwright/test';
 import fs from 'node:fs';
+import {visibleMarkers} from './visibleMarkers';
+function regionalGrid() {
+  const points = [];
+  for (let north = -4; north <= 4; north++) {
+    for (let east = -4; east <= 4; east++) {
+      if (north * north + east * east > 16) continue;
+      points.push({
+        id: `regional:${north}:${east}`, lat: 1.3644 + north * 1.1, lon: 103.9915 + east * 1.1,
+        speed_mps: 7, from_deg: 45,
+      });
+    }
+  }
+  return points;
+}
+
 for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mobile?'mobile':'desktop'}`,async({page})=>{
  if(mobile)await page.setViewportSize({width:390,height:844});
  await page.addInitScript(()=>{window.__changiBenchmark={frames:[],ready:false,failed:false,lastRender:0,aircraftCount:0,visibleCount:0}});
@@ -23,18 +38,18 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
    const frames=[0,6,12].map(i=>({url:`https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/history-${i}.png`,west:99.638609,south:-2.967382,east:108.290871,north:5.657912,observed_at:end-3600+i*300,expires_at:now+3600}));
    return route.fulfill({json:{layer,state:'fresh',observed_at:end,fetched_at:now,retry_after:300,message:null,range_km:480,window_start:end-3600,window_end:end,expected_frames:13,frames}});
   }
-  return route.fulfill({json:{layer,state:'fresh',observed_at:now,fetched_at:now,retry_after:60,message:null,...(layer==='wind_regional'?{kind:'model',source:'Open-Meteo',height_m:10,coverage_km:500,points:[{id:'grid-1',lat:3,lon:103,speed_mps:4,from_deg:45},{id:'grid-2',lat:1.36,lon:103.98,speed_mps:1,from_deg:180}]}:{range_km:480,radar:{url:'https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/test.png',west:99.638609,south:-2.967382,east:108.290871,north:5.657912,observed_at:now,expires_at:now+3600}})}});
+  return route.fulfill({json:{layer,state:'fresh',observed_at:now,fetched_at:now,retry_after:60,message:null,...(layer==='wind_regional'?{kind:'model',source:'Open-Meteo',height_m:10,coverage_km:500,points:regionalGrid()}:{range_km:480,radar:{url:'https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/test.png',west:99.638609,south:-2.967382,east:108.290871,north:5.657912,observed_at:now,expires_at:now+3600}})}});
  });
  await page.route('https://dgs-backend-app-assets-production.s3.ap-southeast-1.amazonaws.com/*.png',r=>r.fulfill({contentType:'image/png',headers:{'access-control-allow-origin':'*'},body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR4nGNg+M/gAMYwBgAtbAT9Ji/7WAAAAABJRU5ErkJggg==','base64')}));
  await page.goto('./');
  await expect(page.locator('.cesium-widget canvas')).toBeVisible();
  const wind=page.getByRole('button',{name:'Wind',exact:true}),radar=page.getByRole('button',{name:'Rain radar',exact:true});
  await expect(wind).toHaveAttribute('aria-pressed','false');await expect(radar).toHaveAttribute('aria-pressed','false');expect(requests).toEqual([]);
- await wind.click();await expect(page.getByText(/2 model points/)).toBeVisible();expect(requests).toEqual(['wind_regional']);
+ await wind.click();await expect(page.getByText(/49 model points/)).toBeVisible();expect(requests).toEqual(['wind_regional']);
  await radar.click();await expect(page.getByLabel('Radar opacity')).toBeVisible();
  await expect(page.getByText('Rain radar · 480 km')).toBeVisible();
- await expect(page.getByText('Regional wind · 500 km')).toBeVisible();
- await expect(page.getByText(/Modelled surface wind · 10 m height/)).toBeVisible();
+ await expect(page.getByText('Regional surface wind · 10 m')).toBeVisible();
+ await expect(page.getByRole('list',{name:'Wind speed in metres per second'}).getByRole('listitem')).toHaveText(['0','2','5','10+']);
  expect(requests).toEqual(['wind_regional','radar_wide']);
  await page.getByLabel('Radar opacity').fill('40');await page.getByLabel('Radar opacity').press('ArrowRight');
  await expect(page.locator('.weather-opacity output')).toHaveText('45%');
@@ -58,6 +73,7 @@ for(const mobile of [false,true])test(`weather overlays and aircraft follow ${mo
  await page.getByRole('button',{name:'Zoom in',exact:true}).click();
  await page.screenshot({path:`/tmp/changi-weather-${mobile?'mobile':'desktop'}.png`});
  if(mobile)await page.getByRole('button',{name:'Toggle aircraft list'}).click();
+ await expect(replay.getByText(/Wind model valid .*SGT/)).toBeVisible();
  await page.getByRole('button',{name:'Select WEATHER TEST',exact:true}).click();
  await page.getByRole('button',{name:'Follow aircraft',exact:true}).click();
  await expect(page.getByRole('region',{name:'3D aircraft follow'})).toBeVisible();
@@ -99,4 +115,96 @@ test('hides stale regional estimates and expired wide radar images',async({page}
  await page.getByRole('button',{name:'Wind',exact:true}).click();await page.getByRole('button',{name:'Rain radar',exact:true}).click();
  await expect(page.getByText('Out of date. Overlay hidden.',{exact:true})).toHaveCount(2);
  expect(imageRequests).toBe(0);
+});
+
+for (const mobile of [false, true]) {
+  test(`fixed Changi outlook across Singapore midnight on ${mobile ? 'mobile' : 'desktop'}`, async ({page}, testInfo) => {
+    if (mobile) await page.setViewportSize({width: 390, height: 844});
+    const beforeMidnight = new Date('2026-11-30T15:52:00Z');
+    const at = beforeMidnight.getTime() / 1000;
+    await page.clock.install({time: beforeMidnight});
+    const snapshot = JSON.parse(fs.readFileSync('../tests/fixtures/scenarios/changi-demo.json','utf8')).frames[0];
+    Object.assign(snapshot, {mode:'live', scenario_time:null, server_time:at});
+    Object.assign(snapshot.status, {mode:'live', upstream_state:'healthy', last_success:at, movements:null});
+    snapshot.tracks = snapshot.tracks.slice(0, 2);
+    for (const track of snapshot.tracks) {
+      Object.assign(track.latest, {mode:'live', position_time:at, provider_time:at, receipt_time:at});
+      track.history = [track.latest];
+    }
+    await page.route('**/api/aircraft*', route => route.fulfill({json:snapshot}));
+    const requests: string[] = [];
+    await page.route('**/api/weather?*', route => {
+      const layer = new URL(route.request().url()).searchParams.get('layer')!;
+      requests.push(layer);
+      return route.fulfill({json:{
+        layer, state:'fresh', source:'Open-Meteo', location:{name:'Changi Airport',lat:1.3644,lon:103.9915},
+        observed_at:at, fetched_at:at, retry_after:900, message:null, current:{humidity_pct:0,pressure_msl_hpa:null},
+        daily:[1,2,4,5].map(day => ({date:`2026-12-0${day}`,weather_code:day === 1 ? 0 : 3,low_c:23,high_c:31})),
+      }});
+    });
+    await page.goto('./');
+    const open = page.getByRole('button', {name:'Changi outlook', exact:true});
+    await expect(open).toBeEnabled();
+    expect(requests).toEqual([]);
+    await open.click();
+    const card = page.getByRole('dialog', {name:'Changi Airport, Singapore'});
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(/Open-Meteo/);
+    await expect(card).toContainText(/0\s*%/);
+    const days = card.getByRole('list', {name:'Next five days'}).getByRole('listitem');
+    await expect(days).toHaveCount(5);
+    const dates = () => days.locator('time').evaluateAll(rows => rows.map(row => row.getAttribute('datetime')));
+    const expected = ['2026-12-01','2026-12-02','2026-12-03','2026-12-04','2026-12-05'];
+    await expect.poll(dates).toEqual(expected);
+    await expect(days.first()).toContainText(/clear sky/i);
+    await expect(days.nth(2)).toContainText(/Unavailable/i);
+    await expect(days.nth(3)).toContainText(/31/);
+    if (!mobile) {
+      for (const track of snapshot.tracks) {
+        await page.getByRole('button', {name:`Select ${track.latest.callsign}`, exact:true}).click();
+        await expect(page.getByRole('region', {name:'Selected aircraft details'})).toContainText(track.latest.callsign);
+        await expect(card).toBeVisible();
+        await expect.poll(async () => (await visibleMarkers(page)).lime.length).toBeGreaterThan(5);
+      }
+      await expect.poll(dates).toEqual(expected);
+      expect(requests).toEqual(['changi_outlook']);
+    }
+    const close = card.getByRole('button', {name:'Close Changi outlook'});
+    await page.screenshot({path:testInfo.outputPath('changi-outlook.png')});
+    await page.clock.fastForward(9 * 60000);
+    await expect.poll(dates).toEqual([...expected.slice(1), '2026-12-06']);
+    await expect(days.last()).toContainText(/Unavailable/i);
+    await close.click();
+    await expect(open).toBeFocused();
+    await page.clock.fastForward(16 * 60000);
+    expect(requests).toEqual(['changi_outlook']);
+    await page.getByRole('button', {name:'Demo', exact:true}).click();
+    await expect(open).toBeDisabled();
+    expect(requests).toEqual(['changi_outlook']);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+test('compact desktop keeps aircraft selectable with wind and outlook open', async ({page}) => {
+  await page.setViewportSize({width:801, height:900});
+  const frame = JSON.parse(fs.readFileSync('../tests/fixtures/scenarios/changi-demo.json', 'utf8')).frames[0];
+  const now = Date.now() / 1000;
+  Object.assign(frame, {mode:'live', scenario_time:null, server_time:now});
+  Object.assign(frame.status, {mode:'live', upstream_state:'healthy', last_success:now, movements:null});
+  for (const track of frame.tracks) {
+    Object.assign(track.latest, {mode:'live', position_time:now, provider_time:now, receipt_time:now});
+    track.history = [track.latest];
+  }
+  await page.route('**/api/aircraft*', route => route.fulfill({json:frame}));
+  await page.route('**/api/weather?*', route => route.fulfill({status:503, json:{error:'Weather unavailable'}}));
+  await page.goto('./');
+  await page.getByRole('button', {name:'Wind', exact:true}).click();
+  await page.getByRole('button', {name:'Changi outlook', exact:true}).click();
+  const outlook = page.getByRole('dialog', {name:'Changi Airport, Singapore'});
+  for (const track of frame.tracks.slice(0, 2)) {
+    const callsign = track.latest.callsign;
+    await page.getByRole('button', {name:'Select ' + callsign, exact:true}).click({timeout:5000});
+    await expect(page.getByRole('region', {name:'Selected aircraft details'})).toContainText(callsign);
+    await expect(outlook).toBeVisible();
+  }
 });

@@ -1,5 +1,7 @@
-import {Cartesian3, Color, Credit, GeometryInstance, Material, Matrix4, PolylineGeometry, PolylineMaterialAppearance, Primitive, PrimitiveCollection, Rectangle, SingleTileImageryProvider, Transforms, type ImageryLayer, type Viewer} from 'cesium';
+import {ArcType, Cartesian3, Color, Credit, GeometryInstance, Material, Matrix4, PolylineGeometry, PolylineMaterialAppearance, Primitive, PrimitiveCollection, Rectangle, SingleTileImageryProvider, Transforms, type ImageryLayer, type Viewer} from 'cesium';
 import type {RadarFrame, WindPoint, WindStation} from '../data/weather';
+import {WIND_SPEED_STOPS} from '../data/windScale';
+import {buildWindField, rasterWindField, regionalWindBounds, windPaths} from './windField';
 
 // Meteorological bearings describe where wind comes FROM. The arrow and pulse
 // travel away from that bearing over the glyph's fixed geographic length.
@@ -22,22 +24,121 @@ function windColor(speed:number):Color {
 }
 
 export function addWindLayer(viewer:Viewer,stations:WindStation[],reducedMotion:boolean):()=>void {
-  return addWindGlyphs(viewer,stations,reducedMotion,900,90);
+  const glyphs=addWindGlyphs(viewer,stations,reducedMotion,900,90,windColor);
+  const stop=glyphs.advance?animateWind(viewer,glyphs.advance):undefined;
+  return ()=>{stop?.();glyphs.destroy();};
 }
 
-export function addRegionalWindLayer(viewer:Viewer,points:WindPoint[],reducedMotion:boolean):()=>void {
-  // Keep each sample anchored at its model coordinate, including at the edge
-  // of the sampling circle. The symbol may extend beyond that circle.
-  return addWindGlyphs(viewer,points,reducedMotion,20_000,2_000);
+const flowMaterial = `
+uniform vec4 color;
+uniform float phase;
+czm_material czm_getMaterial(czm_materialInput materialInput) {
+  czm_material material = czm_getDefaultMaterial(materialInput);
+  float group = floor(materialInput.st.s * 0.5);
+  float along = materialInput.st.s - 2.0 * group;
+  float side = abs(materialInput.st.t - 0.5);
+  float fill;
+  if (phase < 0.0) {
+    float shaft = (1.0 - step(0.68, along)) * (1.0 - smoothstep(0.10, 0.20, side));
+    float head = step(0.65, along) * (1.0 - smoothstep(0.0, 0.09, side - (1.0 - along) * 1.4));
+    fill = max(shaft, head);
+  } else {
+    float head = -0.04 + 1.40 * fract(phase + group * 0.618034);
+    float age = head - along;
+    float tail = smoothstep(-0.03, 0.04, age) * (1.0 - smoothstep(0.06, 0.34, age));
+    float ends = smoothstep(0.0, 0.09, along) * (1.0 - smoothstep(0.92, 1.0, along));
+    fill = tail * ends * (1.0 - smoothstep(0.11, 0.30, side));
+  }
+  material.diffuse = color.rgb;
+  material.alpha = color.a * fill;
+  return material;
+}`;
+
+export function addRegionalWindLayer(viewer:Viewer,points:WindPoint[],reducedMotion:boolean) {
+  const field=buildWindField(points);
+  const shade=field.cells.length?addWindShade(viewer,field):undefined;
+  const instances=windPaths(field).flatMap((path,index)=>{
+    const positions=path.map(({lon,lat})=>Cartesian3.fromDegrees(lon,lat,30));
+    const geometry=PolylineGeometry.createGeometry(new PolylineGeometry({positions,width:7,arcType:ArcType.NONE,
+      vertexFormat:PolylineMaterialAppearance.VERTEX_FORMAT}));
+    const st=geometry?.attributes.st?.values;
+    if(!geometry||!(st instanceof Float32Array)) return [];
+    // Pack the trail index into the texture coordinate so the shader can stagger pulses in one draw batch.
+    for(let i=0;i<st.length;i+=2) st[i]+=2*index;
+    return [new GeometryInstance({geometry})];
+  });
+  const color=new Color(.85,1,1,.88);
+  const material=instances.length?new Material({fabric:{type:'RegionalWindFlow',uniforms:{color,phase:reducedMotion?-1:0},source:flowMaterial},translucent:true}):undefined;
+  const flow=material?viewer.scene.primitives.add(new Primitive({geometryInstances:instances,
+    appearance:new PolylineMaterialAppearance({material}),allowPicking:false,asynchronous:false,compressVertices:false})):undefined;
+  // Keep the old point glyph where there is no cell to interpolate.
+  const glyphs=field.isolated.length?addWindGlyphs(viewer,field.isolated,reducedMotion,20_000,2_000,
+    speed=>Color.fromCssColorString(WIND_SPEED_STOPS[speed<2?0:speed<5?1:speed<10?2:3].color)):undefined;
+  const stopAnimation=!reducedMotion&&(material||glyphs?.advance)?animateWind(viewer,elapsed=>{
+    if(material) material.uniforms.phase=(material.uniforms.phase+elapsed*.72)%1;
+    glyphs?.advance?.(elapsed);
+  }):undefined;
+  let disposed=false;
+  return {
+    setRadarVisible(visible:boolean){
+      if(shade) shade.alpha=visible ? .29 : .5;
+      if(material) material.uniforms.color.alpha=visible ? .54 : .88;
+      glyphs?.setOpacity(visible ? .62 : 1);
+    },
+    destroy(){
+      if(disposed) return;
+      disposed=true;
+      stopAnimation?.();
+      glyphs?.destroy();
+      if(viewer.isDestroyed()) return;
+      if(flow) viewer.scene.primitives.remove(flow);
+      if(shade) viewer.imageryLayers.remove(shade,true);
+    },
+  };
 }
 
-function addWindGlyphs(viewer:Viewer,points:WindPoint[],reducedMotion:boolean,arrowLength:number,calmRadius:number):()=>void {
+function addWindShade(viewer:Viewer,field:ReturnType<typeof buildWindField>):ImageryLayer|undefined {
+  const size=256;
+  const canvas=document.createElement('canvas');
+  canvas.width=canvas.height=size;
+  const context=canvas.getContext('2d');
+  if(!context) return;
+  const image=context.createImageData(size,size);
+  image.data.set(rasterWindField(field,size));
+  context.putImageData(image,0,0);
+  const {west,south,east,north}=regionalWindBounds;
+  const provider=new SingleTileImageryProvider({url:canvas.toDataURL(),tileWidth:size,tileHeight:size,
+    rectangle:Rectangle.fromDegrees(west,south,east,north)});
+  // The three base maps keep their indices. Radar can already be at index 3.
+  const layer=viewer.imageryLayers.addImageryProvider(provider,Math.min(3,viewer.imageryLayers.length));
+  layer.alpha=.5;
+  return layer;
+}
+
+function animateWind(viewer:Viewer,advance:(seconds:number)=>void):()=>void {
+  let previous=performance.now();
+  const reset=()=>{previous=performance.now();};
+  document.addEventListener('visibilitychange',reset);
+  const remove=viewer.scene.preUpdate.addEventListener(()=>{
+    const now=performance.now();
+    const elapsed=Math.min(100,Math.max(0,now-previous))/1000;
+    previous=now;
+    if(!document.hidden) advance(elapsed);
+  });
+  return ()=>{
+    document.removeEventListener('visibilitychange',reset);
+    remove();
+  };
+}
+
+function addWindGlyphs(viewer:Viewer,points:WindPoint[],reducedMotion:boolean,arrowLength:number,calmRadius:number,colorAt:(speed:number)=>Color) {
   const collection = viewer.scene.primitives.add(new PrimitiveCollection());
   const animated:Array<{material:Material;speed:number}> = [];
+  const materials:Material[]=[];
   for (const point of points) {
     const transform = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(point.lon,point.lat,25));
     const world = (east:number,north:number)=>Matrix4.multiplyByPoint(transform,new Cartesian3(east,north,0),new Cartesian3());
-    const color = windColor(point.speed_mps);
+    const color = colorAt(point.speed_mps);
     let positions:Cartesian3[];
     let material:Material;
     if (point.speed_mps === 0) {
@@ -51,6 +152,7 @@ function addWindGlyphs(viewer:Viewer,points:WindPoint[],reducedMotion:boolean,ar
       material = new Material({fabric:{type:'StationWind',uniforms:{color,phase:reducedMotion?-1:0},source:windMaterial},translucent:true});
       if (!reducedMotion) animated.push({material,speed:point.speed_mps});
     }
+    materials.push(material);
     collection.add(new Primitive({
       geometryInstances:new GeometryInstance({geometry:new PolylineGeometry({positions,width:point.speed_mps===0?2:12,vertexFormat:PolylineMaterialAppearance.VERTEX_FORMAT})}),
       appearance:new PolylineMaterialAppearance({material}),
@@ -58,22 +160,19 @@ function addWindGlyphs(viewer:Viewer,points:WindPoint[],reducedMotion:boolean,ar
       asynchronous:false,
     }));
   }
-  let previous = performance.now();
-  const removeAnimation = animated.length ? viewer.scene.preUpdate.addEventListener(()=>{
-    const now = performance.now();
-    const elapsed = Math.min(100,Math.max(0,now-previous))/1000;
-    previous = now;
-    if (document.hidden) return;
-    for (const {material,speed} of animated) {
-      material.uniforms.phase = (material.uniforms.phase+elapsed*(0.1+Math.min(speed,30)*0.015))%1;
-    }
-  }) : ()=>{};
   let disposed = false;
-  return ()=>{
-    if (disposed) return;
-    disposed = true;
-    removeAnimation();
-    if (!viewer.isDestroyed()) viewer.scene.primitives.remove(collection);
+  return {
+    advance:animated.length?(elapsed:number)=>{
+      for(const {material,speed} of animated) material.uniforms.phase=(material.uniforms.phase+elapsed*(0.1+Math.min(speed,30)*0.015))%1;
+    }:undefined,
+    setOpacity(opacity:number){
+      for(const material of materials) material.uniforms.color.alpha=opacity;
+    },
+    destroy(){
+      if(disposed) return;
+      disposed=true;
+      if(!viewer.isDestroyed()) viewer.scene.primitives.remove(collection);
+    },
   };
 }
 

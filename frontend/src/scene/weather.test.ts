@@ -85,7 +85,7 @@ describe('regional model wind',()=>{
 
   it.each([{from:0,axis:'latitude',sign:-1},{from:90,axis:'longitude',sign:-1},{from:180,axis:'latitude',sign:1},{from:270,axis:'longitude',sign:1}])('draws a 20km arrow away from the $from degree source',({from,axis,sign})=>{
     const viewer=setup();
-    const cleanup=addRegionalWindLayer(viewer as never,[{...point,from_deg:from}],true);
+    const {destroy:cleanup}=addRegionalWindLayer(viewer as never,[{...point,from_deg:from}],true);
     const arrow=viewer.scene.primitives.get(0).get(0);
     const positions=arrow.geometryInstances.geometry._positions;
     const start=Cartographic.fromCartesian(positions[0]);
@@ -104,7 +104,7 @@ describe('regional model wind',()=>{
     // Approximately 500km north: glyph extent does not relocate the model sample.
     const edge=Object.freeze({...point,lat:5.86100181862269,from_deg:180});
     const viewer=setup();
-    const cleanup=addRegionalWindLayer(viewer as never,[edge],true);
+    const {destroy:cleanup}=addRegionalWindLayer(viewer as never,[edge],true);
     const positions=viewer.scene.primitives.get(0).get(0).geometryInstances.geometry._positions;
     expect(Cartesian3.distance(positions[0],Cartesian3.fromDegrees(edge.lon,edge.lat,25))).toBeLessThan(1e-6);
     expect(Cartesian3.distance(positions[0],positions[1])).toBeCloseTo(20_000,5);
@@ -113,7 +113,7 @@ describe('regional model wind',()=>{
 
   it('renders a static non-pickable 2km calm ring centered at its model point',()=>{
     const viewer=setup();
-    const cleanup=addRegionalWindLayer(viewer as never,[{...point,speed_mps:0}],false);
+    const {destroy:cleanup}=addRegionalWindLayer(viewer as never,[{...point,speed_mps:0}],false);
     const glyph=viewer.scene.primitives.get(0).get(0);
     const positions:Cartesian3[]=glyph.geometryInstances.geometry._positions;
     const center=Cartesian3.fromDegrees(point.lon,point.lat,25);
@@ -129,7 +129,7 @@ describe('regional model wind',()=>{
     const viewer=setup();
     let now=0;
     vi.spyOn(performance,'now').mockImplementation(()=>now);
-    const cleanup=addRegionalWindLayer(viewer as never,[point,{...point,id:'fast',speed_mps:10}],false);
+    const {destroy:cleanup}=addRegionalWindLayer(viewer as never,[point,{...point,id:'fast',speed_mps:10}],false);
     const collection=viewer.scene.primitives.get(0);
     const slow=collection.get(0).appearance.material.uniforms;
     const fast=collection.get(1).appearance.material.uniforms;
@@ -149,10 +149,68 @@ describe('regional model wind',()=>{
 
   it('creates no glyphs or animation for absent model points',()=>{
     const viewer=setup();
-    const cleanup=addRegionalWindLayer(viewer as never,[],false);
-    expect(viewer.scene.primitives.get(0).length).toBe(0);
+    const {destroy:cleanup}=addRegionalWindLayer(viewer as never,[],false);
+    expect(viewer.scene.primitives.length).toBe(0);
     expect(viewer.scene.preUpdate.numberOfListeners).toBe(0);
     cleanup();
+  });
+
+  const cell:WindPoint[]=[0,1].flatMap(row=>[0,1].map(col=>({
+    id:`regional:${row}:${col}`,lat:1.3+row*1.1,lon:103.9+col*1.1,speed_mps:7,from_deg:45,
+  })));
+
+  function setupShade(){
+    vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockReturnValue({
+      createImageData:(width:number,height:number)=>({data:new Uint8ClampedArray(width*height*4)}),
+      putImageData:vi.fn(),
+    } as never);
+    vi.spyOn(HTMLCanvasElement.prototype,'toDataURL').mockReturnValue('data:image/png;base64,AA');
+    const viewer=setup();
+    for(let i=0;i<3;i++)viewer.imageryLayers.addImageryProvider(provider());
+    return viewer;
+  }
+
+  it('draws shading under an existing radar layer and lightens wind without reallocating',()=>{
+    const viewer=setupShade();
+    const radar=viewer.imageryLayers.addImageryProvider(provider());
+    const wind=addRegionalWindLayer(viewer as never,cell,true);
+    const shade=viewer.imageryLayers.get(3);
+    const arrows=viewer.scene.primitives.get(0);
+    expect(viewer.imageryLayers.get(4)).toBe(radar);
+    expect(arrows.allowPicking).toBe(false);
+    expect(arrows.appearance.material.uniforms.phase).toBe(-1);
+    expect(viewer.scene.preUpdate.numberOfListeners).toBe(0);
+    const normalAlpha=shade.alpha;
+    const normalArrowAlpha=arrows.appearance.material.uniforms.color.alpha;
+    wind.setRadarVisible(true);
+    expect(shade.alpha).toBeLessThan(normalAlpha);
+    expect(arrows.appearance.material.uniforms.color.alpha).toBeLessThan(normalArrowAlpha);
+    wind.setRadarVisible(false);
+    expect(viewer.imageryLayers.get(3)).toBe(shade);
+    expect(shade.alpha).toBe(normalAlpha);
+    wind.destroy();wind.destroy();
+    expect(viewer.imageryLayers.get(3)).toBe(radar);
+    expect(shade.isDestroyed()).toBe(true);
+    expect(arrows.isDestroyed()).toBe(true);
+  });
+
+  it('animates one bounded primitive, pauses while hidden and removes animation on destroy',()=>{
+    const viewer=setupShade();
+    let now=0;
+    vi.spyOn(performance,'now').mockImplementation(()=>now);
+    const wind=addRegionalWindLayer(viewer as never,cell,false);
+    expect(viewer.scene.primitives.length).toBe(1);
+    expect(viewer.scene.preUpdate.numberOfListeners).toBe(1);
+    const uniforms=viewer.scene.primitives.get(0).appearance.material.uniforms;
+    now=100;viewer.scene.preUpdate.raiseEvent();
+    expect(uniforms.phase).toBeGreaterThan(0);
+    const visiblePhase=uniforms.phase;
+    vi.spyOn(document,'hidden','get').mockReturnValue(true);
+    now=200;viewer.scene.preUpdate.raiseEvent();
+    expect(uniforms.phase).toBe(visiblePhase);
+    wind.destroy();
+    expect(viewer.scene.preUpdate.numberOfListeners).toBe(0);
+    expect(viewer.scene.primitives.length).toBe(0);
   });
 });
 

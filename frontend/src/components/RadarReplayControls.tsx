@@ -8,12 +8,13 @@ export function replayStatus(p:RadarPlayback){
  if(!p.loaded)return 'Loading selected frame…';
  return p.history.data.message??(p.history.data.state==='stale'?'Cached history · updates delayed':`${p.frames.length}/13 frames available${p.frames.length<13?' · missing frames omitted':''}`);
 }
-export default function RadarReplayControls({playback:p}:{playback:RadarPlayback}){
+export default function RadarReplayControls({playback:p,windValidAt}:{playback:RadarPlayback;windValidAt:number|null}){
  if(!p.showHistoryBanner)return null;
  const first=p.frames[0],last=p.frames.at(-1),selected=p.frames[p.index];
  return <section className="radar-history-banner panel" aria-label="Rain radar playback">
   <div className="radar-replay-heading"><strong>HISTORICAL RAIN</strong><span>Aircraft remain live</span></div>
   <div className="radar-replay-time" role="status">{p.displayedAt===null?'No radar image displayed':`Shown ${radarTime(p.displayedAt)}`}</div>
+  {windValidAt!==null&&<p className="radar-replay-wind">Wind model valid <time dateTime={new Date(windValidAt*1000).toISOString()}>{radarTime(windValidAt)}</time></p>}
   <div className="radar-replay-actions">
    <button disabled={!p.playing&&(p.mode!=='history'||p.frames.length<2||!p.loaded||p.imageError)} onClick={p.togglePlay}>{p.playing?'Pause radar':'Play radar'}</button>
    <button onClick={p.returnLive}>Return to Live</button>
