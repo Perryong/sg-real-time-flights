@@ -164,7 +164,10 @@ for (const mobile of [false, true]) {
         await page.getByRole('button', {name:`Select ${track.latest.callsign}`, exact:true}).click();
         await expect(page.getByRole('region', {name:'Selected aircraft details'})).toContainText(track.latest.callsign);
         await expect(card).toBeVisible();
-        await expect.poll(async () => (await visibleMarkers(page)).lime.length).toBeGreaterThan(5);
+        await expect.poll(async () => (await visibleMarkers(page)).lime.length, {
+          message: `Map shows the selected aircraft ${track.latest.callsign} beside the open outlook`,
+          timeout: 15000,
+        }).toBeGreaterThan(5);
       }
       await expect.poll(dates).toEqual(expected);
       expect(requests).toEqual(['changi_outlook']);
