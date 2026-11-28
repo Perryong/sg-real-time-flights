@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   Viewer,
   Rectangle,
@@ -54,6 +54,7 @@ interface Props {
   onRadarReady:(at:number|null)=>void;
   region:Region;
   followCamera:FollowCamera;
+  onFollowOrbit:(orbitDelta:number,elevationDelta:number)=>void;
   followStyle:FollowStyle;
   onSatelliteUnavailable:()=>void;
   observer:ObserverPin|null;
@@ -84,8 +85,57 @@ export default function MapScene(props: Props) {
     latest = useRef(props),
     [ready, setReady] = useState(false);
   const radarLayer=useRef<ReturnType<typeof createRadarLayerController>|null>(null);
-  latest.current = props;
+  const orbitPointer = useRef<{ id: number; anchorX: number; anchorY: number } | null>(null);
+  // Cesium can interpret a drag that returns to its starting point as a click.
+  const suppressSelection = useRef(false);
   const [reducedMotion,setReducedMotion]=useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  latest.current = props;
+
+  function startOrbit(event: PointerEvent<HTMLDivElement>) {
+    const canvas = viewerRef.current?.scene.canvas;
+    if (!event.isPrimary || event.button !== 0 || !canvas || event.target !== canvas) return;
+    if (orbitPointer.current && orbitPointer.current.id !== event.pointerId) return;
+    suppressSelection.current = false;
+    if (!props.follow || !props.selected) return;
+    orbitPointer.current = { id: event.pointerId, anchorX: event.clientX, anchorY: event.clientY };
+  }
+
+  function moveOrbit(event: PointerEvent<HTMLDivElement>) {
+    const pointer = orbitPointer.current;
+    if (pointer?.id !== event.pointerId || !props.follow) return;
+    const x = event.clientX - pointer.anchorX;
+    const y = event.clientY - pointer.anchorY;
+    if (!suppressSelection.current && Math.hypot(x, y) < 5) return;
+    suppressSelection.current = true;
+    const degreesPerPixel = 0.5;
+    const orbit = Math.trunc(x * degreesPerPixel);
+    const elevation = Math.trunc(y * degreesPerPixel);
+    pointer.anchorX += orbit / degreesPerPixel;
+    pointer.anchorY += elevation / degreesPerPixel;
+    if (orbit || elevation) props.onFollowOrbit(orbit, elevation);
+  }
+
+  function cancelOrbit() {
+    if (!orbitPointer.current) return;
+    orbitPointer.current = null;
+    suppressSelection.current = true;
+  }
+
+  function endOrbit(event: PointerEvent<HTMLDivElement>) {
+    if (orbitPointer.current?.id !== event.pointerId) return;
+    if (event.type !== "pointerup") {
+      cancelOrbit();
+      const canvas = viewerRef.current?.scene.canvas;
+      if (event.type === "pointercancel" && canvas?.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      return;
+    }
+    if (event.button !== 0) return;
+    moveOrbit(event);
+    orbitPointer.current = null;
+  }
+
   useEffect(()=>{
     const media=window.matchMedia('(prefers-reduced-motion: reduce)');
     const change=()=>setReducedMotion(media.matches);
@@ -186,6 +236,7 @@ export default function MapScene(props: Props) {
         }));
       handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
       handler.setInputAction((click: { position: any }) => {
+        if (suppressSelection.current) return;
         if(latest.current.placing){
           const point=viewer.camera.pickEllipsoid(click.position,viewer.scene.globe.ellipsoid);
           if(point){const c=Cartographic.fromCartesian(point);latest.current.onPin({lat:CMath.toDegrees(c.latitude),lon:CMath.toDegrees(c.longitude),height:2})}
@@ -199,6 +250,7 @@ export default function MapScene(props: Props) {
       const failRenderer = (message: string) => {
         if (failed) return;
         failed = true;
+        cancelOrbit();
         viewer.trackedEntity = undefined;
         viewer.useDefaultRenderLoop = false;
         if (metrics) {
@@ -228,6 +280,15 @@ export default function MapScene(props: Props) {
           metrics.lastRender = now;
           if (metrics.frames.length < 60000) metrics.frames.push(now);
           metrics.aircraftCount = layer.current?.entities.size ?? 0;
+          const frame = layer.current?.followFrame;
+          if (latest.current.follow && frame) {
+            const origin = Cartesian3.fromDegrees(frame.lon, frame.lat, frame.placementAltitude);
+            const local = Matrix4.inverseTransformation(Transforms.eastNorthUpToFixedFrame(origin), new Matrix4());
+            const offset = Matrix4.multiplyByPoint(local, viewer.camera.positionWC, new Cartesian3());
+            metrics.followOffset = { east: offset.x, north: offset.y, up: offset.z };
+          } else {
+            delete metrics.followOffset;
+          }
           const rect = viewer.camera.computeViewRectangle();
           metrics.visibleCount = rect
             ? latest.current.tracks.filter((t) => {
@@ -335,7 +396,7 @@ export default function MapScene(props: Props) {
       v.camera.lookAtTransform(Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(frame.lon,frame.lat,frame.placementAltitude)),offset);
     };
     const remove=v.scene.preRender.addEventListener(update);update();
-    return ()=>{remove();if(v.isDestroyed())return;v.camera.lookAtTransform(Matrix4.IDENTITY);v.camera.setView(prior);if(priorFov!==null&&"fov" in frustum)frustum.fov=priorFov;v.scene.screenSpaceCameraController.enableInputs=true;};
+    return ()=>{cancelOrbit();remove();if(v.isDestroyed())return;v.camera.lookAtTransform(Matrix4.IDENTITY);v.camera.setView(prior);if(priorFov!==null&&"fov" in frustum)frustum.fov=priorFov;v.scene.screenSpaceCameraController.enableInputs=true;};
   },[props.follow,props.selected,ready]);
   useEffect(() => {
     const v = viewerRef.current;
@@ -462,6 +523,11 @@ export default function MapScene(props: Props) {
       ref={container}
       aria-label={`${props.region.name} geographic flight map`}
       role="region"
+      onPointerDownCapture={startOrbit}
+      onPointerMoveCapture={moveOrbit}
+      onPointerUpCapture={endOrbit}
+      onPointerCancelCapture={endOrbit}
+      onLostPointerCapture={endOrbit}
     />
   );
 }

@@ -1,6 +1,6 @@
 import {useEffect,useRef} from 'react';
 import {X,RotateCcw,Plane,ArrowRight} from 'lucide-react';
-import {followSample,defaultFollowCamera,type FollowCamera,type FollowSample} from '../data/follow';
+import {followSample,defaultFollowCamera,followElevationLimits,type FollowCamera,type FollowSample} from '../data/follow';
 import {aircraftModel} from '../data/aircraftModels';
 import {routeFor} from '../data/routes';
 import type {Track,Mode} from '../data/types';
@@ -27,7 +27,7 @@ export default function FollowPanel(p:Props){
   <details className="follow-options"><summary>View controls</summary><div className="follow-controls">
    <label>Distance · {p.camera.distance} m<input aria-label="Follow distance" type="range" min="80" max="1500" step="10" value={p.camera.distance} onChange={e=>p.onCamera({...p.camera,distance:+e.target.value})}/></label>
    <label>Orbit · {p.camera.orbit}°<input aria-label="Follow orbit" type="range" min="-180" max="180" value={p.camera.orbit} onChange={e=>p.onCamera({...p.camera,orbit:+e.target.value})}/></label>
-   <label>Elevation · {p.camera.elevation}°<input aria-label="Follow elevation" type="range" min="5" max="60" value={p.camera.elevation} onChange={e=>p.onCamera({...p.camera,elevation:+e.target.value})}/></label>
+   <label>Elevation · {p.camera.elevation}°<input aria-label="Follow elevation" type="range" min={followElevationLimits.min} max={followElevationLimits.max} value={p.camera.elevation} onChange={e=>p.onCamera({...p.camera,elevation:+e.target.value})}/></label>
    <button onClick={()=>p.onCamera({...defaultFollowCamera})}><RotateCcw size={14}/> Reset behind aircraft</button>
    <label>Map style<select aria-label="Follow map style" value={p.style} onChange={e=>p.onStyle(e.target.value as FollowStyle)}><option value="satellite">Satellite · 2024 imagery</option><option value="day">Day map</option><option value="night">Night map</option></select></label>
    <button aria-pressed={p.trails} onClick={p.onTrails}>{p.trails?'Hide':'Show'} observed trail</button>

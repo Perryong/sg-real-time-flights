@@ -2,6 +2,7 @@ import {displayPosition,type DisplayPosition} from './display';
 import type {Track,Observation} from './types';
 export interface FollowCamera {distance:number;orbit:number;elevation:number}
 export const defaultFollowCamera:FollowCamera={distance:180,orbit:0,elevation:10};
+export const followElevationLimits={min:5,max:60};
 export interface FollowSample extends DisplayPosition {altitude:number;placementAltitude:number;heading:number|null;headingLabel:'Heading'|'Course'|'Direction unknown';speed:number|null;altitudeLabel:string}
 export const angleBetween=(a:number,b:number)=>((b-a)%360+540)%360-180;
 export function followSample(t:Track,now:number):FollowSample|null {
