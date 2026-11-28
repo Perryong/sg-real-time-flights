@@ -4,7 +4,7 @@ for(const mobile of [false,true])test(`immersive follow works ${mobile?'on mobil
  if(mobile)await page.setViewportSize({width:390,height:844});
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('./');await page.getByRole('button',{name:'Demo',exact:true}).click();
- if(mobile)await page.getByRole('button',{name:'Toggle aircraft list'}).click();
+ if(mobile)await page.getByRole('group',{name:'Map panels'}).getByRole('button',{name:'Traffic',exact:true}).click();
  await page.getByRole('button',{name:'Select SYN 101',exact:true}).click();
  await page.getByRole('button',{name:'Follow aircraft',exact:true}).click();
  const panel=page.getByRole('region',{name:'3D aircraft follow'});await expect(panel).toBeVisible();
@@ -72,7 +72,7 @@ for (const mobile of [false, true]) test(`follows and picks the rendered A320-20
   await page.goto('./');
   await page.getByRole('button', {name: 'Demo', exact: true}).click();
   await page.getByRole('button', {name: 'Pause playback'}).click();
-  if (mobile) await page.getByRole('button', {name: 'Toggle aircraft list'}).click();
+  if (mobile) await page.getByRole('group', {name: 'Map panels'}).getByRole('button', {name: 'Traffic', exact: true}).click();
   await page.getByRole('button', {name: 'Select SYN 103', exact: true}).click();
   const details = page.getByRole('region', {name: 'Selected aircraft details'});
   const panel = page.getByRole('region', {name: '3D aircraft follow'});
@@ -210,7 +210,7 @@ for (const input of ['mouse', 'touch'] as const) {
       await page.clock.install();
       await page.goto('./');
       await page.getByRole('button', {name: 'Demo', exact: true}).click();
-      if (touch) await page.getByRole('button', {name: 'Toggle aircraft list'}).click();
+      if (touch) await page.getByRole('group', {name: 'Map panels'}).getByRole('button', {name: 'Traffic', exact: true}).click();
       await page.getByRole('button', {name: 'Select SYN 101', exact: true}).click();
       await page.getByRole('button', {name: 'Follow aircraft', exact: true}).click();
       const panel = page.getByRole('region', {name: '3D aircraft follow'});

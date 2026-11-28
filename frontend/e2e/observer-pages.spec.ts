@@ -26,7 +26,7 @@ test('postal lookup places a pin on mobile and a nearby aircraft can be viewed f
  await page.setViewportSize({width:390,height:844});
  await page.route('**/api/location/postal',route=>route.fulfill({json:{results:[{lat:1.3644,lon:103.9915,label:'Test Changi location',postal:'819643'}]},headers:{'access-control-allow-origin':'*'}}));
  await page.goto('./');await page.getByRole('button',{name:'Demo',exact:true}).click();
- await page.getByRole('button',{name:'Toggle aircraft list'}).click();
+ await page.getByRole('group',{name:'Map panels'}).getByRole('button',{name:'Traffic',exact:true}).click();
  await page.getByRole('button',{name:/^Select SYN/}).first().click();
  await expect(page.getByRole('region',{name:'Selected aircraft details'})).toBeVisible();
  await page.getByRole('button',{name:'My location',exact:true}).click();
@@ -36,10 +36,10 @@ test('postal lookup places a pin on mobile and a nearby aircraft can be viewed f
  const look=page.getByRole('button',{name:/^Look at SYN/}).first();await look.click();
  await expect(page.getByRole('region',{name:'Selected aircraft details'})).toHaveCount(0);
  await expect(page.getByText('SKY VIEW FROM PIN',{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Hide aircraft panel'}).click();
+ await page.getByRole('group',{name:'Map panels'}).getByRole('button',{name:'Collapse panels'}).click();
  await page.screenshot({path:'/tmp/changi-observer-mobile.jpg'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
- await page.getByRole('button',{name:'Toggle aircraft list'}).click();
+ await page.getByRole('group',{name:'Map panels'}).getByRole('button',{name:'Traffic',exact:true}).click();
  await page.getByRole('button',{name:/^Select SYN/}).first().click();
  await expect(page.getByRole('region',{name:'Selected aircraft details'})).toBeVisible();
  await expect(page.getByText('SKY VIEW FROM PIN',{exact:true})).toHaveCount(0);
