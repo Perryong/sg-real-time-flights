@@ -45,6 +45,17 @@ it("identifies an unknown airport in a confirmed airborne leg", () => {
   expect(screen.queryByText("Diverted")).toBeNull();
 });
 
+it("labels archived airports and times as observations and credits the adapted data", () => {
+  render(<JourneyPanel {...props} journey={{ ...journey, status: "completed", source: "FlyItalyADSB", destination: null }} />);
+  expect(screen.getByText("Observed departure airport").parentElement?.textContent).toContain("SIN");
+  expect(screen.getByText("Observed arrival airport").parentElement?.textContent).toContain("Unknown airport");
+  expect(screen.getAllByText(/^Observed .*SGT$/)).toHaveLength(2);
+  expect(screen.queryByText(/intended arrival/i)).toBeNull();
+  expect(screen.getByText(/Adapted receiver data/)).toBeTruthy();
+  expect(screen.getByRole("link", { name: "FlyItalyADSB" }).getAttribute("href")).toBe("https://flyitalyadsb.com/data/api/docs/history/");
+  expect(screen.getByRole("link", { name: "CC BY-SA 4.0" }).getAttribute("href")).toBe("https://creativecommons.org/licenses/by-sa/4.0/");
+});
+
 it("retains zero, unknown and estimated altitude when selecting map positions", () => {
   const onSelectTime = vi.fn();
   function LinkedPanel() {

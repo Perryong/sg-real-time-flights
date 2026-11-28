@@ -21,6 +21,7 @@ it("connects hosted live traffic only to the configured secure backend",async()=
   vi.stubEnv("BASE_URL","/sg-real-time-flights/");vi.stubEnv("VITE_STATIC_HOST","true");vi.stubEnv("VITE_API_BASE_URL","https://tracker.example.org/");
   const h=await import("./hosting");
   expect(h.socketUrl("https://perryong.github.io")).toBe("wss://tracker.example.org/ws/aircraft");
+  expect(h.completedJourneyUrl).toBe("https://tracker.example.org/api/journey/completed");
   expect(h.liveAvailable).toBe(true);
 });
 it("does not enable an insecure backend on the hosted app",async()=>{

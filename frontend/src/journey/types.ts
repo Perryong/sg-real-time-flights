@@ -19,7 +19,7 @@ export interface JourneyPoint {
 export interface Journey {
   id: string;
   callsign: string;
-  status: "airborne" | "arrived" | "regional";
+  status: "airborne" | "arrived" | "completed" | "regional";
   origin: Airport | null;
   destination: Airport | null;
   plannedDestination?: Airport | null;

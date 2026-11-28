@@ -21,10 +21,11 @@ const dayAndTime = new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric", 
 const date = new Intl.DateTimeFormat("en-GB", { timeZone, dateStyle: "short" });
 const feet = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
 
-function AirportEndpoint({ label, airport, time, fullWidth }: {
+function AirportEndpoint({ label, airport, time, observation, fullWidth }: {
   label: string;
   airport: Airport | null;
   time?: number | null;
+  observation?: boolean;
   fullWidth?: boolean;
 }) {
   const code = airport?.iata ?? airport?.icao;
@@ -35,7 +36,7 @@ function AirportEndpoint({ label, airport, time, fullWidth }: {
         <strong className={code ? "journey-airport-code" : undefined}>{code ?? airport?.name ?? airport?.city ?? "Unknown airport"}</strong>
         {code && airport?.name && <span>{airport.name}</span>}
         {airport?.city && (code || airport.name) && <span>{airport.city}</span>}
-        {time != null && <time dateTime={new Date(time * 1000).toISOString()}>{fullTime.format(time * 1000)} SGT</time>}
+        {time != null && <time dateTime={new Date(time * 1000).toISOString()}>{observation && "Observed "}{fullTime.format(time * 1000)} SGT</time>}
       </dd>
     </div>
   );
@@ -161,8 +162,9 @@ export function JourneyPanel({ journey, selectedTime, onSelectTime, onFit, loadi
   const estimates = points.length - observed.length;
   const unknownAltitudes = points.filter((point) => point.altitude_ft === null).length;
   const landed = journey.status === "arrived";
+  const completed = journey.status === "completed";
   const regional = journey.status === "regional";
-  const intended = regional ? null : journey.plannedDestination;
+  const intended = regional || completed ? null : journey.plannedDestination;
   const actual = regional ? null : journey.destination;
   const comparableByIcao = actual?.icao && intended?.icao;
   const comparableByIata = actual?.iata && intended?.iata;
@@ -180,14 +182,20 @@ export function JourneyPanel({ journey, selectedTime, onSelectTime, onFit, loadi
         </button>
       </header>
       <p className="journey-source">
-        <span>{regional ? "Regional observations" : "Confirmed flight leg"}</span>
-        {journey.source && <> · <span>{journey.source}</span></>}
+        {completed ? <>
+          Adapted receiver data from <a href="https://flyitalyadsb.com/data/api/docs/history/" target="_blank" rel="noreferrer">FlyItalyADSB</a>
+          {" · "}<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a>
+        </> : <>
+          <span>{regional ? "Regional observations" : "Confirmed flight leg"}</span>
+          {journey.source && <> · <span>{journey.source}</span></>}
+        </>}
         {diverted && <> · <span className="journey-diverted">Diverted</span></>}
       </p>
       <dl className="journey-route">
-        <AirportEndpoint label="Departure" airport={regional ? null : journey.origin} time={regional ? null : journey.departureTime} />
-        <AirportEndpoint label={landed ? "Arrival" : "Intended arrival"} airport={actual ?? (!landed ? intended ?? null : null)}
-          time={landed ? journey.arrivalTime : null} />
+        <AirportEndpoint label={completed ? "Observed departure airport" : "Departure"} airport={regional ? null : journey.origin}
+          time={regional ? null : journey.departureTime} observation={completed} />
+        <AirportEndpoint label={completed ? "Observed arrival airport" : landed ? "Arrival" : "Intended arrival"}
+          airport={actual ?? (!landed ? intended ?? null : null)} time={landed || completed ? journey.arrivalTime : null} observation={completed} />
         {landed && intended && sameArrival !== true &&
           <AirportEndpoint label="Originally intended arrival" airport={intended} fullWidth />}
       </dl>
@@ -201,7 +209,7 @@ export function JourneyPanel({ journey, selectedTime, onSelectTime, onFit, loadi
             {estimates > 0 && <li>{estimates} estimated {estimates === 1 ? "position" : "positions"}</li>}
             {gaps.length > 0 && <li>{gaps.length} track {gaps.length === 1 ? "gap" : "gaps"}</li>}
             {unknownAltitudes > 0 && <li>{unknownAltitudes} {unknownAltitudes === 1 ? "altitude" : "altitudes"} unavailable</li>}
-            {!regional && journey.departureTime != null && firstObserved && firstObserved.time > journey.departureTime && (
+            {!regional && !completed && journey.departureTime != null && firstObserved && firstObserved.time > journey.departureTime && (
               <li>Observations begin after departure.</li>
             )}
             {landed && journey.arrivalTime != null && lastObserved && lastObserved.time < journey.arrivalTime && (

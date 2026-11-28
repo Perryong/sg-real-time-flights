@@ -128,10 +128,35 @@ for (const mobile of [false, true]) {
         } else {
           await expect(panel.getByText("Regional observations")).toBeVisible();
           await expect(panel.getByText("Unknown airport")).toHaveCount(2);
-          if (callsign) await expect(page.getByText(/Historical route · FlyItalyADSB/)).toBeVisible();
+          if (callsign) await expect(page.getByRole("heading", {name:"Usual route · PEN → SIN"})).toBeVisible();
         }
       }
       expect(requests).toEqual(callsigns.filter(Boolean));
     });
   });
 }
+
+test("opens a completed flight without a live aircraft selection", async ({page}) => {
+  const date = new Date(Date.now() - 86400_000).toISOString().slice(0, 10);
+  const archive = { ...leg, status: "completed", source: "FlyItalyADSB" };
+  await page.route("**/api/aircraft*", route => route.fulfill({status:503, body:""}));
+  await page.route("**/api/weather*", route => route.fulfill({status:503, body:""}));
+  await page.route("**/api/journey/completed?*", route => {
+    const params = new URL(route.request().url()).searchParams;
+    expect(params.get("callsign")).toBe("SIA132");
+    expect(params.get("date")).toBe(date);
+    return route.fulfill({json:{journey:archive}});
+  });
+  await page.goto("./");
+  await page.getByRole("button", {name:"Completed flights", exact:true}).click();
+  await page.getByLabel("Callsign", {exact:true}).fill("SIA132");
+  await page.getByLabel("UTC date", {exact:true}).fill(date);
+  await page.getByRole("button", {name:"Find flight", exact:true}).click();
+  const panel = page.getByRole("region", {name:"Flight journey"});
+  await expect(panel.getByText("SIN", {exact:true})).toBeVisible();
+  await expect(panel.getByText("PEN", {exact:true})).toBeVisible();
+  await panel.getByRole("button", {name:"Fit journey"}).click();
+  await expect(panel.getByRole("slider", {name:"Altitude observation"})).toBeVisible();
+  await page.getByRole("button", {name:"Close completed flights"}).click();
+  await expect(panel).toHaveCount(0);
+});

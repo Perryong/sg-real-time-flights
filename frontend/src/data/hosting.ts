@@ -30,3 +30,4 @@ export const postalSearchUrl = `${backend}/api/location/postal`;
 export const weatherUrl = `${backend}/api/weather`;
 
 export const journeyUrl = `${backend}/api/journey`;
+export const completedJourneyUrl = `${journeyUrl}/completed`;

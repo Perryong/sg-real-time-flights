@@ -16,6 +16,7 @@ from .config import Settings
 from .contracts import Observation, SourceStatus, Track, Snapshot, PhaseEstimate, MovementSummary
 from .movements import day_bounds
 from .provider import AdsbFiProvider, FlyItalyProvider
+from .completed_journey import CompletedJourneyService, completed_journey_response
 from .service import FeedService
 from .journey import JourneyCache, JourneyService, find_observation, journey_response
 
@@ -136,6 +137,12 @@ def create_cloud_app(settings=None):
         allow_methods=['GET','POST'],allow_headers=['Content-Type'], expose_headers=['Retry-After','X-Response-Time','Age'])
     app.include_router(geocoding_router)
     app.include_router(weather_router)
+
+    def journey_redis(client):
+        return RedisCache(client,os.getenv('KV_REST_API_URL',os.getenv('UPSTASH_REDIS_REST_URL','')),
+            os.getenv('KV_REST_API_TOKEN',os.getenv('UPSTASH_REDIS_REST_TOKEN','')),
+            prefix='changi:cloud:'+os.getenv('CLOUD_CACHE_VERSION','v1'))
+
     @app.get('/api/health')
     def health():
         return {'ok':True,'collection_mode':'on_demand','refresh_seconds':15,'durable_counts':True}
@@ -144,9 +151,7 @@ def create_cloud_app(settings=None):
     async def journey(request: Request):
         config = settings or Settings.from_env()
         async with httpx.AsyncClient(follow_redirects=False) as client:
-            cache = RedisCache(client,os.getenv('KV_REST_API_URL',os.getenv('UPSTASH_REDIS_REST_URL','')),
-                os.getenv('KV_REST_API_TOKEN',os.getenv('UPSTASH_REDIS_REST_TOKEN','')),
-                prefix='changi:cloud:'+os.getenv('CLOUD_CACHE_VERSION','v1'))
+            cache = journey_redis(client)
             async def observed(callsign, hex_id, observed_at):
                 saved = cache.decode(await cache.command('GET', cache.prefix + ':snapshot'))
                 tracks = Snapshot.model_validate(saved['snapshot']).tracks if saved and 'snapshot' in saved else []
@@ -154,6 +159,13 @@ def create_cloud_app(settings=None):
             journeys = JourneyCache(redis=cache, api_key=config.aeroapi_api_key, daily_limit=config.aeroapi_daily_request_limit)
             service = JourneyService(client, config.aeroapi_api_key, journeys)
             return await journey_response(request, config, service, observed)
+
+    @app.get('/api/journey/completed')
+    async def completed_journey(request: Request):
+        config = settings or Settings.from_env()
+        async with httpx.AsyncClient(follow_redirects=False) as client:
+            service = CompletedJourneyService(client, config.flyitaly_api_key, redis=journey_redis(client))
+            return await completed_journey_response(request, config, service)
 
     @app.get('/api/aircraft')
     async def aircraft(request:Request):

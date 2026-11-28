@@ -141,7 +141,7 @@ export default function TrafficList(p: Props) {
               <span className="flight-identity">
                 <strong>{o.callsign ?? o.provider_id}</strong>
                 {p.mode === "live" && <small className={`route-intent ${intent}`}>{intentLabel[intent]}</small>}
-                {p.mode === "live" && route && <small>Usual {route.origin_iata??route.origin} → {route.destination_iata??route.destination}</small>}
+                {p.mode === "live" && route && <small>Usual route · {route.origin_iata??route.origin} → {route.destination_iata??route.destination}</small>}
                 <small>
                   {o.aircraft_type ?? "Unknown type"} <i>·</i>{" "}
                   {state === "fresh"

@@ -52,6 +52,118 @@
   margin-top: 4px;
 }
 
+.journey-source a {
+  color: var(--lime);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.completed-flights-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.completed-flights-heading h2 {
+  font-size: 19px;
+  font-weight: 650;
+}
+
+.completed-flights-heading time {
+  white-space: nowrap;
+}
+
+.completed-flight-edit {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--lime);
+  font-size: 12px;
+  min-height: 44px;
+}
+
+.completed-flight-edit:hover {
+  text-decoration: underline;
+}
+
+.completed-flights-heading .icon-button {
+  flex: 0 0 44px;
+  height: 44px;
+  margin-right: -6px;
+}
+
+.completed-flights p[id="completed-date-help"],
+.completed-flights-heading p,
+.completed-flight-feedback,
+.completed-flight-form label {
+  color: #adc0c9;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.completed-flight-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 126px), 1fr));
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.completed-flight-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.completed-flight-form input {
+  color: #dce4e6;
+  color-scheme: dark;
+  min-width: 0;
+  width: 100%;
+  min-height: 40px;
+  padding: 5px 8px;
+  border: 1px solid #49616e;
+  border-radius: 6px;
+  background: #0c151e;
+  font-size: 14px;
+}
+
+.completed-flight-form input::placeholder {
+  color: #849ca9;
+}
+
+.completed-flight-form button {
+  grid-column: 1 / -1;
+  min-height: 44px;
+  font-size: 12px;
+}
+
+.completed-flight-feedback:not(:empty) {
+  margin-top: 14px;
+}
+
+.completed-flights .journey-panel {
+  margin-block: 10px 0;
+}
+
+@media (orientation: portrait) {
+  .map-compact .details-panel.completed-flights {
+    max-height: 56%;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .map-compact .details-panel.completed-flights {
+    width: min(300px, 48%);
+  }
+}
+
+@media (pointer: coarse) {
+  .completed-flight-form input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
 .journey-diverted {
   color: var(--amber);
 }

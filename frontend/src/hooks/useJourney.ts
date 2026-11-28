@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { journeyUrl } from "../data/hosting";
+import { completedJourneyUrl, journeyUrl } from "../data/hosting";
 import type { Track } from "../data/types";
 import type { Airport, Journey, JourneyPoint } from "../journey/types";
 
@@ -40,8 +40,8 @@ function airport(value: unknown): value is Airport | null {
   return value === null || (record(value) &&
     ["name", "city", "icao", "iata"].every(key => value[key] === null || typeof value[key] === "string"));
 }
-function confirmedJourney(value: unknown): value is Journey {
-  return record(value) && (value.status === "airborne" || value.status === "arrived") &&
+function providerJourney(value: unknown): value is Journey {
+  return record(value) && (value.status === "airborne" || value.status === "arrived" || value.status === "completed") &&
     typeof value.id === "string" && typeof value.source === "string" && typeof value.callsign === "string" &&
     airport(value.origin) && airport(value.destination) && (value.plannedDestination == null || airport(value.plannedDestination)) &&
     [value.departureTime, value.arrivalTime].every(time => time == null || epoch(time)) &&
@@ -99,7 +99,7 @@ export function useJourney(track: Track | null, singapore: boolean, now = wallCl
           if (controller.signal.aborted) return;
           if (journey === undefined) throw Error();
           if (journey !== null) {
-            if (!confirmedJourney(journey) || journey.callsign !== params.get("callsign") ||
+            if (!providerJourney(journey) || journey.status === "completed" || journey.callsign !== params.get("callsign") ||
                 (confirmed && journey.id !== confirmed.id)) throw Error();
             confirmed = journey;
             params.set("id", journey.id);
@@ -129,5 +129,50 @@ export function useJourney(track: Track | null, singapore: boolean, now = wallCl
     selectedTime: point?.anchor === anchor ? point?.time ?? null : null,
     locateRequest: point?.anchor === anchor ? point?.request : undefined,
     selectTime: (time: number) => setPoint(previous => ({ anchor, time, request: (previous?.request ?? 0) + 1 })),
+  };
+}
+
+type CompletedLookup =
+  | { phase: "idle" | "loading" }
+  | { phase: "unavailable"; message: string }
+  | { phase: "ready"; date: string; journey: Journey; message?: string; point?: { time: number; request: number } };
+
+export function useCompletedJourney() {
+  const [state, setState] = useState<CompletedLookup | null>(null);
+  const active = useRef<AbortController | null>(null);
+  useEffect(() => () => active.current?.abort(), []);
+
+  const unavailable = "The completed-flight archive is temporarily unavailable. Try again shortly.";
+  async function search(callsign: string, date: string) {
+    active.current?.abort();
+    const controller = new AbortController();
+    active.current = controller;
+    setState({ phase: "loading" });
+    const normalized = callsign.replace(/\s/g, "").toUpperCase();
+    const params = new URLSearchParams({ callsign: normalized, date });
+    try {
+      const response = await fetch(`${completedJourneyUrl}?${params}`, { signal: controller.signal, credentials: "omit", cache: "no-store" });
+      if (!response.ok) throw Error();
+      const { journey, reason, retryable } = await response.json();
+      if (controller.signal.aborted) return;
+      const message = typeof reason === "string" ? reason : undefined;
+      if (journey === null) {
+        setState({ phase: "unavailable", message: message ?? (retryable ? unavailable : "No completed leg found. Check the callsign and UTC date.") });
+        return;
+      }
+      if (!providerJourney(journey) || journey.status !== "completed" || journey.source !== "FlyItalyADSB" || journey.callsign !== normalized) throw Error();
+      setState({ phase: "ready", journey, date, message });
+    } catch {
+      if (!controller.signal.aborted) setState({ phase: "unavailable", message: unavailable });
+    }
+  }
+
+  return {
+    state, search,
+    open: () => setState({ phase: "idle" }),
+    close: () => { active.current?.abort(); setState(null); },
+    selectTime: (time: number) => setState(current => current?.phase === "ready"
+      ? { ...current, point: { time, request: (current.point?.request ?? 0) + 1 } }
+      : current),
   };
 }

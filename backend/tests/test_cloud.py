@@ -1,5 +1,6 @@
 """Exercise the real Lua coordination against a disposable local Redis."""
 import asyncio
+from datetime import datetime, timedelta, timezone
 import json
 import shutil
 import socket
@@ -118,6 +119,56 @@ async def test_journey_budget_and_refresh_claim_are_shared_between_instances(cac
     finally:
         for cache in (first, other):
             command('DEL', f'{cache.budget_key}:day:{day}', cache.budget_key + ':recent')
+
+
+@pytest.mark.asyncio
+async def test_hosted_completed_journeys_share_results_and_provider_rate_limit(monkeypatch, command):
+    from backend.app.cloud import create_cloud_app
+    from backend.app.config import Settings
+    from backend.tests.test_completed_journey import PATH, flights, leg, trace
+
+    today = datetime.now(timezone.utc).date()
+    day = (today - timedelta(days=2)).isoformat()
+    start = int(datetime.fromisoformat(day + 'T05:00:00+00:00').timestamp())
+    end = start + 3600
+    provider_calls = []
+    key = str(uuid.uuid4())
+    monkeypatch.setenv('CLOUD_CACHE_VERSION', str(uuid.uuid4()))
+    monkeypatch.setenv('KV_REST_API_URL', 'https://redis.example')
+    monkeypatch.setenv('KV_REST_API_TOKEN', 'private-redis-token')
+
+    async def transport(request):
+        if request.url.host == 'redis.example':
+            result = await asyncio.to_thread(command, *json.loads(request.content))
+            return httpx.Response(200, json={'result':result})
+        assert request.url.host == 'api.flyitalyadsb.com' and request.headers['x-api-key'] == key
+        provider_calls.append(request.url.path)
+        if '/history/' in request.url.path:
+            return httpx.Response(200, json=trace(start, [0,1.36,104,0], [3600,21,130,33000]))
+        rows = [leg(day=day, first_seen=start, last_seen=end,
+            **{'from':{'airport':'WSSS', 'time':start}, 'to':{'airport':'RJAA', 'time':end}})] if request.url.path.endswith('SIA638') else []
+        payload = flights(*rows)
+        payload['coverage'].update({'from':(today-timedelta(days=7)).isoformat(), 'to':(today-timedelta(days=1)).isoformat()})
+        return httpx.Response(200, json=payload)
+
+    factory = httpx.AsyncClient
+    monkeypatch.setattr('backend.app.cloud.httpx.AsyncClient',
+        lambda **kwargs: factory(transport=httpx.MockTransport(transport), **kwargs))
+    settings = Settings(flyitaly_enabled=True, flyitaly_api_key=key)
+    params = {'callsign':'SIA638', 'date':day}
+    for _ in range(2):
+        async with factory(transport=httpx.ASGITransport(app=create_cloud_app(settings)), base_url='http://test') as client:
+            response = await client.get(PATH, params=params)
+            assert response.json()['journey']['points'][-1]['altitude_ft'] == 33000
+            assert key not in response.text
+    assert provider_calls == ['/v2/flights/callsign/SIA638', f'/v2/history/76cc7a/{day}']
+    for index in range(5):
+        async with factory(transport=httpx.ASGITransport(app=create_cloud_app(settings)), base_url='http://test') as client:
+            response = await client.get(PATH, params={**params, 'callsign':f'SIA{index}'})
+            result = response.json()
+            assert result['journey'] is None
+            assert result.get('retryable', False) is (index == 4)
+    assert len(provider_calls) == 6
 
 
 @pytest.mark.asyncio
