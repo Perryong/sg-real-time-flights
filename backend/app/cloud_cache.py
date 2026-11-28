@@ -76,17 +76,20 @@ class RedisCache:
         if not isinstance(result,list) or not result: raise CacheUnavailable()
         if result[0] == 'limited': raise CacheLimited()
         if result[0] not in ('cached','refresh') or len(result)!=2: raise CacheUnavailable()
-        state = None
-        if result[1]:
-            try:
-                if len(result[1]) > 2_000_000: raise ValueError()
-                with gzip.GzipFile(fileobj=io.BytesIO(base64.b64decode(result[1], validate=True))) as stream:
-                    raw = stream.read(8_000_001)
-                if len(raw)>8_000_000: raise ValueError()
-                state = json.loads(raw)
-                if not isinstance(state,dict): raise ValueError()
-            except (ValueError, OSError, EOFError): raise CacheUnavailable() from None
-        return Claim(state, token if result[0]=='refresh' else None)
+        return Claim(self.decode(result[1]), token if result[0]=='refresh' else None)
+
+    def decode(self, payload):
+        if not payload:
+            return None
+        try:
+            if not isinstance(payload, str) or len(payload) > 2_000_000: raise ValueError()
+            with gzip.GzipFile(fileobj=io.BytesIO(base64.b64decode(payload, validate=True))) as stream:
+                raw = stream.read(8_000_001)
+            if len(raw)>8_000_000: raise ValueError()
+            state = json.loads(raw)
+            if not isinstance(state,dict): raise ValueError()
+            return state
+        except (ValueError, OSError, EOFError): raise CacheUnavailable() from None
 
     def encode(self, state):
         raw = json.dumps(state, separators=(',',':'), allow_nan=False).encode()

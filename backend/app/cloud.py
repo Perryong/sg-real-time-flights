@@ -17,6 +17,7 @@ from .contracts import Observation, SourceStatus, Track, Snapshot, PhaseEstimate
 from .movements import day_bounds
 from .provider import AdsbFiProvider, FlyItalyProvider
 from .service import FeedService
+from .journey import JourneyCache, JourneyService, find_observation, journey_response
 
 
 class CloudFeed:
@@ -138,6 +139,21 @@ def create_cloud_app(settings=None):
     @app.get('/api/health')
     def health():
         return {'ok':True,'collection_mode':'on_demand','refresh_seconds':15,'durable_counts':True}
+
+    @app.get('/api/journey')
+    async def journey(request: Request):
+        config = settings or Settings.from_env()
+        async with httpx.AsyncClient(follow_redirects=False) as client:
+            cache = RedisCache(client,os.getenv('KV_REST_API_URL',os.getenv('UPSTASH_REDIS_REST_URL','')),
+                os.getenv('KV_REST_API_TOKEN',os.getenv('UPSTASH_REDIS_REST_TOKEN','')),
+                prefix='changi:cloud:'+os.getenv('CLOUD_CACHE_VERSION','v1'))
+            async def observed(callsign, hex_id, observed_at):
+                saved = cache.decode(await cache.command('GET', cache.prefix + ':snapshot'))
+                tracks = Snapshot.model_validate(saved['snapshot']).tracks if saved and 'snapshot' in saved else []
+                return find_observation(tracks, callsign, hex_id, observed_at)
+            journeys = JourneyCache(redis=cache, api_key=config.aeroapi_api_key, daily_limit=config.aeroapi_daily_request_limit)
+            service = JourneyService(client, config.aeroapi_api_key, journeys)
+            return await journey_response(request, config, service, observed)
 
     @app.get('/api/aircraft')
     async def aircraft(request:Request):
