@@ -13,11 +13,13 @@ import {
   Color,
   UrlTemplateImageryProvider,
   ImageryLayer,
+  SceneTransforms,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   HeadingPitchRange,
   Math as CMath,
   EllipsoidTerrainProvider,
+  EllipsoidalOccluder,
   JulianDate,
 } from "cesium";
 import {nearbyAircraft,type ObserverPin} from "../data/observer";
@@ -32,6 +34,8 @@ import type {} from "./performance";
 import {modelFiles} from "../data/aircraftModels";
 import {addFollowEnvironment,satelliteBackdrop} from "./environment";
 import { DarkMapProvider } from "./imagery";
+import {addRegionalWindLayer,createRadarLayerController} from "./weather";
+import type {WindPoint,RadarFrame} from "../data/weather";
 // Fit geographic bounds through Cesium's camera API so the shorter screen
 // dimension contains the region in both widescreen and portrait layouts.
 interface Region {lat:number;lon:number;radius:number;name:string}
@@ -39,13 +43,49 @@ function regionExtent(region:Region){
  const latSpan=region.radius/111.195*1.08,lonSpan=latSpan/Math.cos(region.lat*Math.PI/180);
  return Rectangle.fromDegrees(region.lon-lonSpan,region.lat-latSpan,region.lon+lonSpan,region.lat+latSpan);
 }
-export type CameraAction = {
-  kind: "overview" | "north" | "in" | "out" | "runway" | "pin" | "place";
-  id?: string;
-  nonce: number;
-};
-import {addRegionalWindLayer,createRadarLayerController} from './weather';
-import type {WindPoint,RadarFrame} from '../data/weather';
+export type CameraAction = (
+  | { kind: "overview" | "north" | "in" | "out" | "runway" | "pin" | "place"; id?: string }
+  | { kind: "locate"; id: string }
+) & { nonce: number };
+
+function locateAircraft(viewer: Viewer, position: Cartesian3) {
+  const { camera, scene } = viewer;
+  const canvas = scene.canvas;
+  const bounds = canvas.getBoundingClientRect();
+  camera.cancelFlight();
+  const projected = SceneTransforms.worldToWindowCoordinates(scene, position);
+  const globe = new EllipsoidalOccluder(scene.globe.ellipsoid, camera.positionWC);
+  const markerOffsets = [[0, 0], [-24, -15], [24, -15], [-24, 30], [24, 30]];
+  if (projected && globe.isPointVisible(position) && markerOffsets.every(([x, y]) =>
+    document.elementFromPoint(bounds.left + projected.x + x, bounds.top + projected.y + y) === canvas,
+  )) return;
+
+  const workspace = canvas.closest(".workspace");
+  const panel = (selector: string) => workspace?.querySelector(selector)?.getBoundingClientRect();
+  const details = panel(".details-panel");
+  const narrow = matchMedia("(max-width: 800px)").matches;
+  const left = narrow ? bounds.left : panel(".traffic-panel")?.right ?? bounds.left;
+  let right = narrow ? panel(".map-controls")?.left ?? bounds.right : details?.left ?? bounds.right;
+  const bottom = narrow ? details?.top ?? bounds.bottom : bounds.bottom;
+  const weather = narrow ? panel(".weather-controls") : undefined;
+  const top = Math.min(weather?.bottom ?? bounds.top, bottom - 60);
+  // If the marker cannot fit below Weather, place it to the left of Weather.
+  if (weather && top < weather.bottom) right = Math.min(right, weather.left);
+  const focus = new Cartesian2((left + right) / 2 - bounds.left, (top + bottom) / 2 - bounds.top);
+
+  const pitch = Math.min(camera.pitch, CMath.toRadians(-35));
+  const altitude = Cartographic.fromCartesian(position).height;
+  const range = Math.max(3000, camera.positionCartographic.height - altitude) / -Math.sin(pitch);
+  camera.lookAt(position, new HeadingPitchRange(camera.heading, pitch, range));
+  camera.lookAtTransform(Matrix4.IDENTITY);
+
+  // Translate the camera so the aircraft projects into the gap between panels.
+  const ray = camera.getPickRay(focus);
+  if (!ray) return;
+  const depth = range / Cartesian3.dot(ray.direction, camera.directionWC);
+  const offset = Cartesian3.multiplyByScalar(ray.direction, depth, new Cartesian3());
+  Cartesian3.subtract(position, offset, camera.position);
+}
 interface Props {
   windPoints:WindPoint[]|null;
   radarFrame:RadarFrame|null;
@@ -458,6 +498,14 @@ export default function MapScene(props: Props) {
     if (!v || !ready) return;
     const { kind, id } = props.action;
     v.trackedEntity = undefined;
+    if (kind === "locate") {
+      const aircraft = layer.current;
+      const track = aircraft?.tracks.get(id);
+      if (aircraft && track && props.selected === id && !props.follow) {
+        locateAircraft(v, aircraft.position(track));
+      }
+      return;
+    }
     const duration = matchMedia("(prefers-reduced-motion: reduce)").matches
       ? 0
       : 0.8;
