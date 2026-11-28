@@ -20,7 +20,7 @@ import {
   PolylineGlowMaterialProperty,
 } from "cesium";
 import {followSample,type FollowSample} from "../data/follow";
-import {aircraftModel} from "../data/aircraftModels";
+import {aircraftModel, followAircraftModel} from "../data/aircraftModels";
 import { displayPosition } from "../data/display";
 import { freshness } from "../data/freshness";
 import type { Track } from "../data/types";
@@ -181,7 +181,8 @@ export class AircraftLayer {
           },
           model: {
             uri: new CallbackProperty(()=>{
-              const file=aircraftModel(current().latest.aircraft_type).file;
+              const type = current().latest.aircraft_type;
+              const file = (id === this.followId ? followAircraftModel(type) : aircraftModel(type)).file;
               return this.modelResource(this.unavailableModels.has(file)?'generic-aircraft.glb':file);
             },false),
             minimumPixelSize: new CallbackProperty(()=>id===this.followId?96:24,false),
