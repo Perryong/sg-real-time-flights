@@ -21,6 +21,7 @@ export const formatTime = (t: number | null) =>
         hour12: false,
       }) + " SGT";
 interface Props {
+  children?: React.ReactNode;
   track: Track;
   isChangi?:boolean;
   now: number;
@@ -31,6 +32,7 @@ interface Props {
 }
 export default function AircraftDetails({
   track,
+  children,
   now,
   follow,
   followAvailable = true,
@@ -73,6 +75,7 @@ export default function AircraftDetails({
           </p>
         </div>
       </div>
+      {children}
       <RouteDetails observation={o} now={now} isChangi={isChangi} />
       <div className="aircraft-silhouette" aria-hidden="true">
         <Plane size={116} strokeWidth={0.8} />

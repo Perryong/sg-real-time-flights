@@ -56,6 +56,16 @@ A provider 401/403 pause is intentionally persistent. Correct the credentials fi
 
 The previous Mac LaunchAgents (`com.changi-observatory.backend` and `com.changi-observatory.tunnel`) are retained as a local fallback and disabled after cloud verification. Their private logs and `.env` remain on the Mac. To run locally, use `scripts/dev.sh`. Restarting the old Cloudflare tunnel changes its temporary hostname and does not update the hosted tracker automatically.
 
+## Flight journeys
+
+Select an aircraft from the list or map. **Fit journey** frames its available track. Tap the altitude chart or step through it with the slider to locate a timestamp on the map. The chart uses feet and Singapore time. Breaks mark provider-reported gaps, intervals over 15 minutes, and estimated positions. A missing altitude leaves a break in the altitude profile.
+
+The regional feed supplies recent observations for each selection. For aircraft discovered in Singapore airspace, the optional FlightAware integration matches the observation to a dated leg. While the tab is visible, the selected leg refreshes every five minutes in regional coverage and every 30 minutes after it leaves, through arrival. Clear the selection to stop tracking it. The details identify a confirmed diversion when the provider supplies both airport records.
+
+Enable the integration on the API server with `AEROAPI_API_KEY`, `AEROAPI_ENABLED=true` and `AEROAPI_USE_CONFIRMED=true` after obtaining permission for mixed-provider public display. Vercel also uses the shared Redis instance configured for the traffic feed. The adapter accepts recent aircraft selections and signed refreshes for up to 48 hours. The default cap of 100 upstream requests per UTC day is shared across viewers. An operator can adjust it with `AEROAPI_DAILY_REQUEST_LIMIT`. The adapter also limits requests to four per second. Local development applies those limits per server process.
+
+An uncached successful opening, airborne refresh, or final arrival check each uses one flight lookup and one track request. At one result set per endpoint the listed usage fee is US$0.017 per pair, or US$0.051 for an opening, one refresh and completion. Cache hits require no provider query. These figures exclude subscription minimums. The automated tests replay an open-data flight and incur no AeroAPI charge. [AeroAPI pricing](https://www.flightaware.com/commercial/aeroapi/) · [Archive provenance and gaps](../tests/fixtures/journeys/README.md)
+
 ## Likely arrivals, departures and historical routes
 
 The live Traffic panel has a **Changi direction** dropdown for likely inbound, likely outbound and unknown/other aircraft. Flight rows and selected details show the usual route when supplied by FlyItalyADSB. `?with=route` adds historical route metadata to the existing 500 km request; no additional account, request loop or paid plan is used. Route data is credited separately from the source supplying the newest position.

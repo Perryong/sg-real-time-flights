@@ -21,6 +21,8 @@ import {
   EllipsoidTerrainProvider,
   EllipsoidalOccluder,
   JulianDate,
+  CustomDataSource,
+  PerspectiveFrustum,
 } from "cesium";
 import {nearbyAircraft,type ObserverPin} from "../data/observer";
 import type {SkyAim} from "../components/ObserverPanel";
@@ -36,6 +38,17 @@ import {addFollowEnvironment,satelliteBackdrop} from "./environment";
 import { DarkMapProvider } from "./imagery";
 import {addRegionalWindLayer,createRadarLayerController} from "./weather";
 import type {WindPoint,RadarFrame} from "../data/weather";
+import type { Journey } from "../journey/types";
+import { drawJourney, fitJourneyCamera, journeyPosition, markJourneyPoint } from "./journey";
+
+const regionalZoomLimit = 3_000_000;
+const visibilityPosition = new Cartographic();
+
+function trackInView(rectangle: Rectangle, track: Track) {
+  const { lon, lat } = track.latest;
+  return Rectangle.contains(rectangle, Cartographic.fromDegrees(lon, lat, 0, visibilityPosition));
+}
+
 // Fit geographic bounds through Cesium's camera API so the shorter screen
 // dimension contains the region in both widescreen and portrait layouts.
 interface Region {lat:number;lon:number;radius:number;name:string}
@@ -48,7 +61,7 @@ export type CameraAction = (
   | { kind: "locate"; id: string }
 ) & { nonce: number };
 
-function locateAircraft(viewer: Viewer, position: Cartesian3) {
+function locateMapPoint(viewer: Viewer, position: Cartesian3) {
   const { camera, scene } = viewer;
   const canvas = scene.canvas;
   const bounds = canvas.getBoundingClientRect();
@@ -79,13 +92,44 @@ function locateAircraft(viewer: Viewer, position: Cartesian3) {
   camera.lookAt(position, new HeadingPitchRange(camera.heading, pitch, range));
   camera.lookAtTransform(Matrix4.IDENTITY);
 
-  // Translate the camera so the aircraft projects into the gap between panels.
+  // Translate the camera so the point projects into the gap between panels.
   const ray = camera.getPickRay(focus);
   if (!ray) return;
   const depth = range / Cartesian3.dot(ray.direction, camera.directionWC);
   const offset = Cartesian3.multiplyByScalar(ray.direction, depth, new Cartesian3());
   Cartesian3.subtract(position, offset, camera.position);
 }
+
+function usableMapViewport(canvas: HTMLCanvasElement) {
+  const { left, top, width, height } = canvas.getBoundingClientRect();
+  const gridSize = 20;
+  const open = Array.from({ length: gridSize }, (_, row) =>
+    Array.from({ length: gridSize }, (_, col) =>
+      document.elementFromPoint(left + width * (col + 0.5) / gridSize, top + height * (row + 0.5) / gridSize) === canvas,
+    ),
+  );
+  let best = { left: 0, top: 0, right: 1, bottom: 1 }, bestArea = 0;
+  for (let firstRow = 0; firstRow < gridSize; firstRow++) {
+    const available = Array<boolean>(gridSize).fill(true);
+    for (let row = firstRow; row < gridSize; row++) {
+      let firstCol = 0;
+      for (let col = 0; col < gridSize; col++) {
+        available[col] = available[col] && open[row][col];
+        if (!available[col]) {
+          firstCol = col + 1;
+          continue;
+        }
+        const area = (col - firstCol + 1) * (row - firstRow + 1);
+        if (area > bestArea) {
+          bestArea = area;
+          best = { left: firstCol / gridSize, top: firstRow / gridSize, right: (col + 1) / gridSize, bottom: (row + 1) / gridSize };
+        }
+      }
+    }
+  }
+  return best;
+}
+
 interface Props {
   windPoints:WindPoint[]|null;
   radarFrame:RadarFrame|null;
@@ -104,6 +148,10 @@ interface Props {
   airport: Airport | null;
   tracks: Track[];
   selected: string | null;
+  journey?: Journey | null;
+  journeySelectedTime?: number | null;
+  journeyLocateRequest?: number;
+  journeyFitRequest?: number;
   follow: boolean;
   night: boolean;
   view: "overhead" | "3d" | "sky";
@@ -126,6 +174,12 @@ export default function MapScene(props: Props) {
     [ready, setReady] = useState(false);
   const radarLayer=useRef<ReturnType<typeof createRadarLayerController>|null>(null);
   const windLayer=useRef<ReturnType<typeof addRegionalWindLayer>|null>(null);
+  const journeyLayer = useRef<CustomDataSource | null>(null);
+  const appliedJourneyFit = useRef(0);
+  const journeyPoints = props.journey?.points;
+  const hasJourneyPoints = Boolean(journeyPoints?.length);
+  const selectedJourneyPoint = props.journeySelectedTime == null ? undefined :
+    journeyPoints?.find(point => point.time === props.journeySelectedTime);
   const radarVisible=props.radarFrame!==null;
   const orbitPointer = useRef<{ id: number; anchorX: number; anchorY: number } | null>(null);
   // Cesium can interpret a drag that returns to its starting point as a click.
@@ -238,7 +292,7 @@ export default function MapScene(props: Props) {
       viewer.scene.globe.baseColor = Color.fromCssColorString("#102833");
       viewer.scene.globe.showGroundAtmosphere = false;
       viewer.scene.screenSpaceCameraController.minimumZoomDistance = 200;
-      viewer.scene.screenSpaceCameraController.maximumZoomDistance = 3000000;
+      viewer.scene.screenSpaceCameraController.maximumZoomDistance = regionalZoomLimit;
       const options = {
         url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
         maximumLevel: 18,
@@ -269,6 +323,8 @@ export default function MapScene(props: Props) {
         orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       });
       layer.current = new AircraftLayer(viewer, () => latest.current.getNow(),message=>latest.current.onError(message));
+      journeyLayer.current = new CustomDataSource("selected-journey");
+      void viewer.dataSources.add(journeyLayer.current);
       modelFiles.forEach(file=>fetch(`${import.meta.env.BASE_URL}models/${file}`, { signal: modelAbort.signal })
         .then(async (r) => {
           if (!r.ok) throw Error();
@@ -289,9 +345,11 @@ export default function MapScene(props: Props) {
           if(point){const c=Cartographic.fromCartesian(point);latest.current.onPin({lat:CMath.toDegrees(c.latitude),lon:CMath.toDegrees(c.longitude),height:2})}
           return;
         }
-        const picked = viewer.scene.pick(click.position);
-        if (picked?.id?.id && layer.current?.tracks.has(picked.id.id))
-          latest.current.onSelect(picked.id.id);
+        let picked = viewer.scene.pick(click.position);
+        if (picked?.id?.id && journeyLayer.current?.entities.contains(picked.id)) {
+          picked = viewer.scene.drillPick(click.position).find(hit => layer.current?.tracks.has(hit?.id?.id));
+        }
+        if (picked?.id?.id && layer.current?.tracks.has(picked.id.id)) latest.current.onSelect(picked.id.id);
       }, ScreenSpaceEventType.LEFT_CLICK);
       let failed = false;
       const failRenderer = (message: string) => {
@@ -339,16 +397,7 @@ export default function MapScene(props: Props) {
           }
           const rect = viewer.camera.computeViewRectangle();
           metrics.visibleCount = rect
-            ? latest.current.tracks.filter((t) => {
-                const x = CMath.toRadians(t.latest.lon),
-                  y = CMath.toRadians(t.latest.lat);
-                return (
-                  x >= rect.west &&
-                  x <= rect.east &&
-                  y >= rect.south &&
-                  y <= rect.north
-                );
-              }).length
+            ? latest.current.tracks.filter(t => trackInView(rect, t)).length
             : 0;
         });
       }
@@ -356,16 +405,7 @@ export default function MapScene(props: Props) {
         const rectangle = viewer.camera.computeViewRectangle();
         if (!rectangle) return;
         latest.current.onVisibleCount(
-          latest.current.tracks.filter((t) => {
-            const x = CMath.toRadians(t.latest.lon),
-              y = CMath.toRadians(t.latest.lat);
-            return (
-              x >= rectangle.west &&
-              x <= rectangle.east &&
-              y >= rectangle.south &&
-              y <= rectangle.north
-            );
-          }).length,
+          latest.current.tracks.filter(t => trackInView(rectangle, t)).length,
         );
       });
       setReady(true);
@@ -393,6 +433,7 @@ export default function MapScene(props: Props) {
       handler?.destroy();
       layer.current?.clear();
       layer.current = null;
+      journeyLayer.current = null;
       if (!viewer.isDestroyed()) viewer.destroy();
       viewerRef.current = null;
     };
@@ -413,16 +454,7 @@ export default function MapScene(props: Props) {
       const rect = viewerRef.current?.camera.computeViewRectangle();
       if (rect)
         props.onVisibleCount(
-          props.tracks.filter((t) => {
-            const x = CMath.toRadians(t.latest.lon),
-              y = CMath.toRadians(t.latest.lat);
-            return (
-              x >= rect.west &&
-              x <= rect.east &&
-              y >= rect.south &&
-              y <= rect.north
-            );
-          }).length,
+          props.tracks.filter(t => trackInView(rect, t)).length,
         );
     }
   }, [props.tracks, props.selected, props.trails, props.view, props.observer, props.follow, ready]);
@@ -510,7 +542,7 @@ export default function MapScene(props: Props) {
       const aircraft = layer.current;
       const track = aircraft?.tracks.get(id);
       if (aircraft && track && props.selected === id && !props.follow) {
-        locateAircraft(v, aircraft.position(track));
+        locateMapPoint(v, aircraft.position(track));
       }
       return;
     }
@@ -573,6 +605,48 @@ export default function MapScene(props: Props) {
         orientation:{heading:CMath.toRadians(props.skyAim.heading),pitch:CMath.toRadians(props.skyAim.pitch),roll:0}});
     }
   },[props.view,props.observer,props.skyAim,props.follow,ready]);
+  useEffect(() => {
+    const entities = journeyLayer.current?.entities;
+    if (ready && entities) drawJourney(entities, journeyPoints ?? []);
+  }, [ready, journeyPoints]);
+  useEffect(() => {
+    const entities = journeyLayer.current?.entities;
+    if (ready && entities) markJourneyPoint(entities, selectedJourneyPoint);
+  }, [ready, journeyPoints, selectedJourneyPoint]);
+  useEffect(() => {
+    const v = viewerRef.current;
+    if (ready && v) {
+      v.scene.screenSpaceCameraController.maximumZoomDistance = hasJourneyPoints ? Number.POSITIVE_INFINITY : regionalZoomLimit;
+    }
+  }, [ready, hasJourneyPoints]);
+  useEffect(() => {
+    const v = viewerRef.current;
+    const request = props.journeyFitRequest ?? 0;
+    if (!ready || !v || !hasJourneyPoints || props.follow || props.view === "sky" || request <= appliedJourneyFit.current) return;
+    if (!(v.camera.frustum instanceof PerspectiveFrustum)) return;
+    const cameraView = fitJourneyCamera(latest.current.journey?.points ?? [], usableMapViewport(v.scene.canvas), v.camera.frustum);
+    if (!cameraView) return;
+    appliedJourneyFit.current = request;
+    v.trackedEntity = undefined;
+    let flying = true;
+    const finish = () => { flying = false; };
+    v.camera.flyTo({
+      ...cameraView,
+      duration: reducedMotion ? 0 : 0.8,
+      complete: finish,
+      cancel: finish,
+    });
+    return () => {
+      if (flying && !v.isDestroyed()) v.camera.cancelFlight();
+    };
+  }, [ready, props.journey?.id, hasJourneyPoints, props.journeyFitRequest, props.follow, props.view, reducedMotion]);
+  useEffect(() => {
+    const v = viewerRef.current;
+    if (ready && v && selectedJourneyPoint && !props.follow && props.view !== "sky") {
+      v.trackedEntity = undefined;
+      locateMapPoint(v, journeyPosition(selectedJourneyPoint));
+    }
+  }, [ready, props.journey?.id, selectedJourneyPoint?.time, props.journeyLocateRequest, props.follow, props.view]);
   return (
     <div
       className={`map-canvas ${props.placing?'placing-pin':''}`}

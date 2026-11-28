@@ -4,7 +4,7 @@ import json
 import time
 from contextlib import asynccontextmanager
 import httpx
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from .geocoding import router as geocoding_router
@@ -14,6 +14,7 @@ from .provider import AdsbFiProvider, FlyItalyProvider
 from .opensky import OpenSkyGroundProvider
 from .combined import CombinedProvider
 from .service import FeedService
+from .journey import JourneyCache, JourneyService, find_observation, journey_response
 
 def load_airport():
     manifest=ROOT/'data/airport/manifest.json'
@@ -35,6 +36,8 @@ def create_app(settings=None, provider=None, clock=time.time):
                 primary_interval=settings.poll_seconds,ground_reason=settings.opensky_reason,regional=regional)
             feed=FeedService(settings,collector,clock)
             app.state.feed=feed
+            cache=JourneyCache(clock, daily_limit=settings.aeroapi_daily_request_limit)
+            app.state.journey=JourneyService(client,settings.aeroapi_api_key,cache,clock)
             task=asyncio.create_task(feed.run())
             try: yield
             finally:
@@ -53,6 +56,11 @@ def create_app(settings=None, provider=None, clock=time.time):
     async def status(): return app.state.feed.status()
     @app.get('/api/aircraft')
     async def aircraft(): return app.state.feed.snapshot()
+    @app.get('/api/journey')
+    async def journey(request: Request):
+        async def observed(callsign, hex_id, observed_at):
+            return find_observation(app.state.feed.store.snapshot(clock()), callsign, hex_id, observed_at)
+        return await journey_response(request, settings, getattr(app.state, 'journey', None), observed, clock)
     @app.get('/api/airport')
     def airport(): return load_airport()
     @app.get('/api/fixtures/{name}')

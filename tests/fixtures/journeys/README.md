@@ -1,0 +1,7 @@
+# Singapore Airlines SQ132, 18 May 2025
+
+The browser tests replay a historical Singapore-to-Penang leg. Aircraft 76b4ec (9V-MGL) transmitted callsign SIA132. The first identified position is climbing just off Changi at 1,275 ft. The trace reaches 34,000 ft and ends on the ground at Penang International. The trace omits takeoff and has reception gaps, including almost five minutes on approach. It supplies no exact departure or arrival time.
+
+The fixture comes from ADSB.lol’s production archive, member `traces/ec/trace_full_76b4ec.json`, rows 2–486 inclusive (zero-based). The following leg is excluded. Coordinates and numeric altitudes come directly from readsb, with the base UTC epoch added to each offset. Ground reports without a numeric altitude are null. The sample keeps roughly one report per minute, reception restarts flagged by readsb, the transition to ground, and both ends. Estimated positions were absent. The separately scripted airborne response in the browser test is a truncated replay of these observations.
+
+Contains information from ADSB.lol, made available under the Open Database License (ODbL) 1.0. This derived fixture is also available under ODbL 1.0. [Source archive](https://github.com/adsblol/globe_history_2025/releases/tag/v2025.05.18-planes-readsb-prod-0) · [Readsb trace format](https://github.com/wiedehopf/readsb/blob/dev/README-json.md#trace-jsons) · [License](https://opendatacommons.org/licenses/odbl/1-0/)

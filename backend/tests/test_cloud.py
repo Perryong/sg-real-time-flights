@@ -92,6 +92,80 @@ async def test_unavailable_cache_never_falls_back_to_upstream():
         with pytest.raises(CacheUnavailable):
             await RedisCache(client, 'https://redis.example', 'secret').claim('viewer')
 
+
+@pytest.mark.asyncio
+async def test_journey_budget_and_refresh_claim_are_shared_between_instances(cache_factory, command):
+    from backend.app.cloud_cache import CacheLimited
+    from backend.app.journey import JourneyCache
+
+    redis = cache_factory()
+    first = JourneyCache(redis=redis, api_key='first-key', daily_limit=1)
+    second = JourneyCache(redis=cache_factory(redis.prefix), api_key='first-key', daily_limit=1)
+    other = JourneyCache(redis=cache_factory(redis.prefix), api_key='other-key', daily_limit=1)
+    claims = await asyncio.gather(first.claim('one-flight'), second.claim('one-flight'))
+    assert sorted(claims) == [False, True]
+    assert await other.claim('one-flight')
+    await first.put('one-flight', {'example':'cached'}, 60)
+    assert await second.get('one-flight') == {'example':'cached'}
+    assert await other.get('one-flight') is None
+
+    day = int(command('TIME')[0]) // 86400
+    try:
+        await first.reserve()
+        with pytest.raises(CacheLimited):
+            await second.reserve()
+        await other.reserve()
+    finally:
+        for cache in (first, other):
+            command('DEL', f'{cache.budget_key}:day:{day}', cache.budget_key + ':recent')
+
+
+@pytest.mark.asyncio
+async def test_hosted_journey_uses_published_feed_and_refreshes_across_instances(monkeypatch, command):
+    from backend.app.cloud import create_cloud_app
+    from backend.app.config import Settings
+    from backend.app.journey import JourneyCache
+    from backend.tests.test_journey import flight, iso, point
+
+    now = int(time.time())
+    version = uuid.uuid4().hex
+    monkeypatch.setenv('CLOUD_CACHE_VERSION', version)
+    monkeypatch.setenv('KV_REST_API_URL', 'https://redis.example')
+    monkeypatch.setenv('KV_REST_API_TOKEN', 'private-redis-token')
+    mocked_aero = []
+
+    async def transport(request):
+        if request.url.host == 'redis.example':
+            result = await asyncio.to_thread(command, *json.loads(request.content))
+            return httpx.Response(200, json={'result':result})
+        if request.url.host == 'opendata.adsb.fi':
+            return httpx.Response(200, json={'now':now*1000, 'ac':[{'hex':'aa1234', 'flight':'QTR8176',
+                'lat':1.35, 'lon':103.9, 'seen_pos':0, 'alt_baro':36000}]})
+        assert request.url.host == 'aeroapi.flightaware.com'
+        assert request.headers['x-apikey'] == 'private-test-key'
+        mocked_aero.append(request.url.path)
+        data = {'positions':[point(now, 1.35, 103.9, 360)]} if request.url.path.endswith('/track') else {
+            'flights':[flight(actual_off=iso(now-36000), estimated_on=iso(now+7200))]}
+        return httpx.Response(200, json=data)
+
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(transport), **kwargs))
+    settings = Settings(live_enabled=True, aeroapi_enabled=True, aeroapi_api_key='private-test-key')
+    async with client_type(transport=httpx.ASGITransport(app=create_cloud_app(settings)), base_url='http://test') as client:
+        tracks = (await client.get('/api/aircraft')).json()['tracks']
+        assert tracks[0]['latest']['position_time'] == now
+        params = {'callsign':'QTR8176', 'hex':'aa1234', 'observed_at':now}
+        result = (await client.get('/api/journey', params=params)).json()['journey']
+        assert result['points'][0]['altitude_ft'] == 36000
+        assert len(mocked_aero) == 2
+
+    command('DEL', f'changi:cloud:{version}:snapshot')
+    async with client_type(transport=httpx.ASGITransport(app=create_cloud_app(settings)), base_url='http://test') as client:
+        same = (await client.get('/api/journey', params={**params, 'id':result['id']})).json()['journey']
+        assert same == result and len(mocked_aero) == 2
+    budget = JourneyCache(api_key=settings.aeroapi_api_key).budget_key
+    command('DEL', budget + ':recent', f'{budget}:day:{now // 86400}')
+
 @pytest.mark.asyncio
 async def test_shared_snapshots_preserve_backoff_history_and_original_timestamps(cache_factory, command):
     from backend.app.cloud import CloudFeed
