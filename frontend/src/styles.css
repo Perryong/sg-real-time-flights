@@ -50,7 +50,9 @@ a {
 }
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
   outline: 2px solid var(--lime);
   outline-offset: 3px;
 }
@@ -214,6 +216,11 @@ input {
   height: 25px;
 }
 .workspace {
+  --rail-width: 68px;
+  --traffic-left: 87px;
+  --traffic-width: clamp(250px, calc(20vw + 38px), 350px);
+  --weather-width: clamp(252px, calc(12vw + 129px), 334px);
+  --map-content-left: calc(var(--traffic-left) + var(--traffic-width) + 54px);
   --aircraft-details-right: 84px;
   --aircraft-details-width: 320px;
   position: relative;
@@ -223,7 +230,7 @@ input {
 }
 .map-canvas {
   position: absolute;
-  inset: 0 0 0 68px;
+  inset: 0 0 0 var(--rail-width);
   background: #0e2530;
 }
 .map-shade {
@@ -246,7 +253,7 @@ input {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 68px;
+  width: var(--rail-width);
   background: #0c151e;
   border-right: 1px solid #25333e;
   z-index: 10;
@@ -310,14 +317,17 @@ input {
 .left-panel-wrap {
   position: absolute;
   top: 19px;
-  left: 87px;
+  left: var(--traffic-left);
   bottom: 72px;
-  width: 326px;
+  width: var(--traffic-width);
   z-index: 5;
   pointer-events: none;
 }
 .left-panel-wrap > * {
   pointer-events: auto;
+}
+.map-panel-drawer {
+  display: contents;
 }
 .traffic-panel {
   height: 100%;
@@ -415,6 +425,13 @@ input {
   color: #dbe4e6;
   width: 100%;
   font-size: 11px;
+}
+.panel-search:focus-within {
+  outline: 2px solid var(--lime);
+  outline-offset: 1px;
+}
+.flight-filters > summary {
+  display: none;
 }
 .panel-search kbd {
   font: 10px var(--mono);
@@ -617,7 +634,7 @@ input {
 .map-topline {
   position: absolute;
   top: 25px;
-  left: 467px;
+  left: var(--map-content-left);
   right: 26px;
   display: flex;
   justify-content: space-between;
@@ -685,7 +702,7 @@ input {
 .simulation-banner {
   position: absolute;
   top: 77px;
-  left: 467px;
+  left: var(--map-content-left);
   display: flex;
   gap: 9px;
   align-items: center;
@@ -762,7 +779,7 @@ input {
 .map-bottom {
   position: absolute;
   bottom: 72px;
-  left: 467px;
+  left: var(--map-content-left);
   right: 92px;
   z-index: 4;
   display: flex;
@@ -1143,7 +1160,7 @@ input {
 }
 .playback-bar {
   position: absolute;
-  left: 467px;
+  left: var(--map-content-left);
   right: 92px;
   bottom: 22px;
   z-index: 5;
@@ -1197,7 +1214,7 @@ input {
 }
 .map-warning {
   position: absolute;
-  left: 467px;
+  left: var(--map-content-left);
   bottom: 160px;
   right: 90px;
   z-index: 6;
@@ -1301,16 +1318,6 @@ input {
   background: linear-gradient(0deg, #0b223c44, transparent 50%);
 }
 @media (min-width: 1600px) {
-  .left-panel-wrap {
-    width: 350px;
-  }
-  .map-topline,
-  .simulation-banner,
-  .map-bottom,
-  .playback-bar,
-  .map-warning {
-    left: 495px;
-  }
   .traffic-title h1 {
     font-size: 21px;
   }
@@ -1361,20 +1368,14 @@ input {
   .summary-grid {
     gap: 8px;
   }
-  .left-panel-wrap {
-    width: 290px;
-  }
-  .map-bottom,
-  .playback-bar,
-  .simulation-banner,
-  .map-warning {
-    left: 405px;
-  }
   .simulation-banner > span:last-child {
     display: none;
   }
 }
 @media (max-width: 800px) {
+  .workspace {
+    --rail-width: 53px;
+  }
   .topbar {
     height: 64px;
     padding: 0 15px;
@@ -1402,9 +1403,6 @@ input {
     font-size: 7px;
     padding: 6px;
   }
-  .rail {
-    width: 53px;
-  }
   .rail-button {
     width: 43px;
     min-height: 54px;
@@ -1415,15 +1413,6 @@ input {
   }
   .rail-coordinate {
     display: none;
-  }
-  .map-canvas {
-    left: 53px;
-  }
-  .left-panel-wrap {
-    left: 65px;
-    top: 66px;
-    bottom: 110px;
-    width: 273px;
   }
   .map-topline {
     top: 15px;
@@ -1441,17 +1430,6 @@ input {
   .map-breadcrumb .slash,
   .region-badge {
     display: none;
-  }
-  .collapse-panel {
-    left: auto;
-    right: 4px;
-    top: -48px;
-  }
-  .sidebar-closed .left-panel-wrap {
-    width: 35px;
-  }
-  .sidebar-closed .collapse-panel {
-    right: 0;
   }
   .sidebar-closed .map-topline {
     left: 120px;
@@ -1511,9 +1489,6 @@ input {
   .app:has(.playback-bar) .simulation-banner {
     bottom: 117px;
   }
-  .app:has(.playback-bar) .left-panel-wrap {
-    bottom: 142px;
-  }
   .statusbar {
     height: 29px;
     min-height: 29px;
@@ -1531,9 +1506,6 @@ input {
   }
   .statusbar button {
     font-size: 8px;
-  }
-  .sidebar-open .left-panel-wrap:has(.traffic-panel) {
-    z-index: 9;
   }
   .details-panel {
     top: auto;
@@ -1652,20 +1624,6 @@ input {
     transition: none !important;
   }
 }
-@media (max-width: 800px) {
-  .collapse-panel {
-    left: 0;
-    right: auto;
-  }
-  .sidebar-closed .collapse-panel {
-    left: 0;
-    right: auto;
-  }
-  .map-topline,
-  .sidebar-closed .map-topline {
-    left: 108px;
-  }
-}
 .feed-inspection {
   font-size: 10px;
   color: #8099a7;
@@ -1743,7 +1701,7 @@ input {
 .follow-route.route-unknown>strong {display:none}
 .follow-route.route-unknown>span svg {display:none}
 
-.weather-controls{position:absolute;right:84px;top:62px;z-index:7;width:302px;border-radius:8px;background:#101e28f2}
+.weather-controls{position:absolute;right:84px;top:62px;z-index:7;width:var(--weather-width);border-radius:8px;background:#101e28f2}
 .weather-buttons{display:flex;padding:4px;gap:4px}
 .weather-buttons button{display:flex;align-items:center;justify-content:center;gap:5px;flex:1;min-width:0;min-height:38px;padding:0 5px;border:1px solid transparent;border-radius:5px;background:transparent;color:#adbec7;font-size:12px;line-height:1.15;cursor:pointer}
 .weather-buttons button:first-child{flex:.78}
@@ -1751,7 +1709,7 @@ input {
 .weather-buttons button:not(:disabled):hover{background:#23323c;color:#f0f4f2}
 .weather-buttons button[aria-pressed=true],.weather-buttons button[aria-expanded=true]{color:#c6f29a;background:#293c2b;border-color:#60764b}
 .weather-buttons button:disabled{opacity:.5;cursor:default}
-.weather-details{padding:0 10px 10px;max-height:280px;overflow:auto}
+.weather-details{padding:0 10px 10px;max-height:min(320px,calc(100dvh - 240px));overflow:auto;overscroll-behavior:contain}
 .weather-details summary{font-size:10px;color:var(--muted);cursor:pointer;padding:5px 0}
 .weather-legend{border-top:1px solid #34434a;padding:9px 0 6px;font-size:11px}
 .weather-legend strong{font-weight:600}.weather-legend p,.weather-note{font-size:10px;line-height:1.5;color:#bccbd3;margin:5px 0}.weather-note{padding:0 10px 6px}
@@ -1768,23 +1726,21 @@ input {
 .weather-legend > .weather-credit{display:block;margin-top:5px}
 .changi-outlook{position:absolute;inset:calc(100% + 8px) 0 auto auto;margin:0;width:346px;max-width:none;max-height:min(570px,calc(100dvh - 235px));overflow:auto;overscroll-behavior:contain;padding:14px 16px;border:1px solid #3c505a;border-radius:12px;background:#101e28;color:#e6eeef;font-size:13px;scrollbar-width:thin;scrollbar-color:#475c65 #101e28}
 .weather-controls:has(.weather-details[open]) .changi-outlook{top:0;right:calc(100% + 10px)}
-@media(min-width:801px){
- .workspace:has(.details-panel,.lost-notice) .weather-controls{right:calc(var(--aircraft-details-right) + var(--aircraft-details-width) + 12px)}
-}
-@media(min-width:801px) and (max-width:1150px){
- .weather-controls:has(.weather-details[open]) .changi-outlook{top:calc(100% + 8px);right:0;max-height:max(140px,calc(100dvh - 435px))}
- .sidebar-open .workspace:has(.details-panel,.lost-notice) .weather-controls:has(.changi-outlook){
+.app:not(.map-compact) .workspace:has(.details-panel,.lost-notice) .weather-controls{right:calc(var(--aircraft-details-right) + var(--aircraft-details-width) + 12px)}
+@media(max-width:1150px){
+ .app:not(.map-compact) .weather-controls:has(.weather-details[open]) .changi-outlook{top:calc(100% + 8px);right:0;max-height:max(70px,calc(100dvh - min(320px,100dvh - 240px) - 225px))}
+ .app:not(.map-compact).sidebar-open .workspace:has(.details-panel,.lost-notice) .weather-controls:has(.changi-outlook){
    right:var(--aircraft-details-right);
    max-height:calc(50% - 62px);
    overflow:auto;
  }
- .sidebar-open .workspace:has(.details-panel,.lost-notice) .changi-outlook{
+ .app:not(.map-compact).sidebar-open .workspace:has(.details-panel,.lost-notice) .changi-outlook{
    position:static;
    width:100%;
    max-height:none;
    overflow:visible;
  }
- .sidebar-open .workspace:has(.changi-outlook) :is(.details-panel,.lost-notice){top:calc(50% + 8px)}
+ .app:not(.map-compact).sidebar-open .workspace:has(.changi-outlook) :is(.details-panel,.lost-notice){top:calc(50% + 8px)}
 }
 .outlook-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 8px}
 .outlook-heading h2{font-size:18px;line-height:1.2;font-weight:650;letter-spacing:-.02em}
@@ -1809,26 +1765,7 @@ input {
 .outlook-temperatures{display:grid;gap:2px;margin:0;font-variant-numeric:tabular-nums}
 .outlook-temperatures div{display:grid;grid-template-columns:25px minmax(50px,1fr);gap:5px}
 .outlook-temperatures dd{margin:0;text-align:right;white-space:nowrap}
-@media(max-width:800px){
- .workspace{--aircraft-panel-top:111px}
- .workspace:has(.weather-note){--aircraft-panel-top:142px}
- .left-panel-wrap{top:var(--aircraft-panel-top);width:min(273px,calc(100% - 77px))}
- .collapse-panel{top:calc(18px - var(--aircraft-panel-top))}
- .lost-notice{top:var(--aircraft-panel-top)}
- .weather-controls{top:51px;right:12px;width:min(224px,calc(100% - 166px))}
- .weather-buttons button{font-size:11px;gap:4px;min-height:44px;padding:1px 3px}
- .weather-details{max-height:200px}
- .weather-controls:has(details[open]){right:54px;top:100px;width:min(224px,calc(100% - 119px))}
- .app.following .weather-controls{top:12px;right:12px;width:224px}
- .app.following .weather-details{max-height:180px}
- .app:not(.sidebar-closed):not(.following) .weather-details{display:none}
- .app:not(.sidebar-closed):not(.following) .weather-controls{top:51px;right:12px;width:min(224px,calc(100% - 166px))}
- .changi-outlook,.weather-controls:has(.weather-details[open]) .changi-outlook{position:fixed;inset:auto 0 0;margin:0 auto;width:min(100%,440px);max-height:90dvh;padding:16px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));border-radius:15px 15px 0 0}
- .changi-outlook::backdrop{background:#06121bc7}
- .outlook-close{width:44px;height:44px}
- .outlook-days li{padding:10px 0}
-}
-@media(max-width:420px){.weather-buttons button svg{display:none}.mobile-region-picker{max-width:94px}}
+@media(max-width:420px){.mobile-region-picker{max-width:94px}}
 .radar-history-open,.radar-replay-actions button{border:1px solid #61704d;border-radius:5px;padding:7px 10px;color:#d9efb2;background:#233125;font-size:11px;min-height:34px}
 .radar-history-open{margin-top:4px;width:100%}
 .radar-history-banner{position:absolute;z-index:9;bottom:85px;left:50%;transform:translateX(-50%);width:min(400px,calc(100% - 90px));padding:12px;border-radius:9px;background:#14222af5;border-color:#8b7350;font-size:11px}
@@ -1842,4 +1779,430 @@ input {
  .app:has(.pin-placement-banner) .radar-history-banner{bottom:130px}
  .app.following:has(.radar-history-banner) .weather-details{display:none}
  .app.following .radar-history-banner{left:12px;right:12px}
+}
+
+.map-compact.app {
+  min-height: 0;
+}
+.map-compact .workspace {
+  --drawer-edge: 8px;
+  --drawer-bottom: max(13px, env(safe-area-inset-bottom));
+  --drawer-limit: min(45dvh, 390px);
+  --drawer-toolbar: 52px;
+}
+.map-compact:not(.following) .workspace:has(.playback-bar) {
+  --drawer-bottom: calc(48px + env(safe-area-inset-bottom));
+}
+.map-compact .rail-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.map-compact:not(.following) .map-panel-drawer {
+  position: absolute;
+  z-index: 9;
+  left: calc(var(--rail-width) + var(--drawer-edge));
+  right: var(--drawer-edge);
+  bottom: var(--drawer-bottom);
+  display: flex;
+  flex-direction: column;
+  max-height: var(--drawer-limit);
+  border: 1px solid #3c545e;
+  border-radius: 12px;
+  background: #101e28;
+  box-shadow: 0 10px 35px #07101870;
+}
+.map-compact:not(.following) .map-panel-drawer[data-panel="traffic"] {
+  height: var(--drawer-limit);
+}
+.map-panel-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: var(--drawer-toolbar);
+  padding: 3px 7px;
+}
+.map-panel-switcher button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 13px;
+  border-bottom: 2px solid transparent;
+  border-radius: 5px 5px 0 0;
+  color: #b9cbd4;
+  font-size: 14px;
+  font-weight: 650;
+}
+.map-panel-switcher button:hover {
+  background: #1d303c;
+}
+.map-panel-switcher button[aria-pressed="true"] {
+  border-color: var(--lime);
+  color: var(--lime);
+  background: #20312c;
+}
+.weather-panel-status {
+  display: block;
+  color: var(--amber);
+  font: 10px var(--mono);
+}
+.map-panel-switcher .collapse-drawer {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+}
+.map-compact .map-panel-drawer .left-panel-wrap {
+  position: static;
+  flex: 1;
+  min-height: 0;
+  width: auto;
+  border-top: 1px solid var(--line);
+}
+.map-compact .map-panel-drawer:not([data-panel="traffic"]) .left-panel-wrap {
+  display: none;
+}
+.map-compact :is(.traffic-panel, .observer-panel) {
+  height: 100%;
+  border: 0;
+  border-radius: 0 0 12px 12px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.map-compact .traffic-panel :is(.traffic-title,.region-line) {
+  display: none;
+}
+.map-compact .summary-grid {
+  margin: 0 12px 6px;
+  padding: 0;
+  border: 0;
+}
+.map-compact .summary-grid strong {
+  font-size: 18px;
+}
+.map-compact .traffic-tools {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 0;
+}
+.map-compact .panel-search {
+  margin: 0;
+  height: 44px;
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+}
+.map-compact .panel-search input {
+  font-size: 14px;
+}
+.map-compact .panel-search kbd {
+  display: none;
+}
+.map-compact .flight-filters > summary {
+  display: list-item;
+  padding: 12px 8px;
+  min-height: 44px;
+  border: 1px solid #3c505c;
+  border-radius: 6px;
+  color: #d0dce0;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+.map-compact .flight-filter-options {
+  margin-top: 5px;
+  padding: 9px 0;
+  border: 1px solid #3c505c;
+  border-radius: 8px;
+  background: #152731;
+}
+.map-compact .traffic-tools:has(.flight-filters[open]) {
+  flex-wrap: wrap;
+}
+.map-compact .flight-filters[open] {
+  width: 100%;
+}
+.map-compact .flight-filters .tabs {
+  gap: 16px;
+  padding: 0 12px;
+}
+.map-compact .flight-filters .tabs button {
+  min-height: 39px;
+  padding: 0;
+  font-size: 12px;
+}
+.map-compact .direction-controls {
+  padding: 8px 12px 1px;
+}
+.map-compact .direction-controls select {
+  min-height: 39px;
+  font-size: 12px;
+}
+.map-compact .list-caption {
+  padding: 7px 10px 5px;
+  color: #99b0bc;
+}
+.map-compact .traffic-scroll {
+  min-height: 65px;
+  overscroll-behavior: contain;
+}
+.map-compact .flight-row {
+  min-height: 48px;
+  padding: 7px 10px;
+  gap: 8px;
+}
+.map-compact .flight-icon {
+  width: 28px;
+  height: 29px;
+  flex: none;
+}
+.map-compact .flight-identity {
+  gap: 3px;
+}
+.map-compact .flight-identity strong {
+  font-size: 13px;
+}
+.map-compact .flight-identity small {
+  color: #a6b9c4;
+}
+.map-compact .flight-numbers {
+  white-space: nowrap;
+}
+.map-compact .flight-row:focus-visible {
+  outline-offset: -2px;
+}
+.map-compact .list-footer {
+  padding: 7px 10px;
+}
+.map-compact:not(.following) .map-bottom {
+  display: none;
+}
+.map-compact:not(.following) .map-panel-drawer .weather-controls:not([hidden]) {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  min-height: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 12px 12px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.map-compact .weather-buttons {
+  flex: none;
+}
+.map-compact .weather-buttons button {
+  min-height: 44px;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+.map-compact:not(.following) .weather-details {
+  max-height: none;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+.map-compact .weather-details summary {
+  color: #aebfc9;
+  font-size: 12px;
+  padding: 6px 0;
+}
+.map-compact .weather-legend strong {
+  font-size: 13px;
+}
+.map-compact :is(.weather-legend p, .weather-legend small, .weather-note, .weather-opacity) {
+  font-size: 12px;
+}
+.map-compact :is(.radar-history-open, .radar-replay-actions button) {
+  min-height: 44px;
+}
+.map-compact .weather-details .radar-history-banner {
+  position: static;
+  transform: none;
+  width: auto;
+  margin: 9px 0;
+}
+.map-compact .changi-outlook,
+.map-compact .weather-controls:has(.weather-details[open]) .changi-outlook {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0 auto;
+  width: min(100%,440px);
+  max-height: 90dvh;
+  padding: 16px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  border-radius: 15px 15px 0 0;
+}
+.map-compact .changi-outlook::backdrop { background: #06121bc7; }
+.map-compact .outlook-close { width: 44px; height: 44px; }
+.map-compact .outlook-days li { padding: 10px 0; }
+.map-compact.following .weather-controls {
+  top: 12px;
+  right: 12px;
+  width: min(265px, calc(100% - 24px));
+}
+.map-compact.following .weather-details {
+  max-height: 180px;
+}
+.map-compact:not(.following) .workspace:has(.map-panel-drawer:not([data-panel="collapsed"])) :is(.details-panel, .lost-notice) {
+  display: none;
+}
+.map-compact .details-panel {
+  top: auto;
+  left: calc(var(--rail-width) + var(--drawer-edge));
+  right: 55px;
+  bottom: calc(var(--drawer-bottom) + var(--drawer-toolbar) + 8px);
+  width: auto;
+  max-height: 42%;
+}
+.map-compact .playback-bar {
+  left: calc(var(--rail-width) + var(--drawer-edge));
+  right: var(--drawer-edge);
+  bottom: max(7px, env(safe-area-inset-bottom));
+}
+.map-compact .simulation-banner,
+.map-compact .pin-placement-banner {
+  left: calc(var(--rail-width) + var(--drawer-edge));
+  top: 60px;
+  bottom: auto;
+  transform: none;
+}
+.map-compact .pin-placement-banner {
+  top: 88px;
+}
+@media (max-width: 650px) {
+  .map-compact .details-panel {
+    padding: 12px;
+  }
+  .map-compact .topbar {
+    gap: 8px;
+  }
+}
+@media (max-width: 350px) {
+  .map-compact .weather-buttons button svg {
+    display: none;
+  }
+}
+@media (max-height: 700px) and (orientation: portrait) {
+  .map-compact .map-topline {
+    left: auto;
+  }
+  .map-compact .map-breadcrumb {
+    display: none;
+  }
+  .map-compact .mobile-region-picker {
+    top: 17px;
+  }
+  .map-compact .map-controls {
+    top: 57px;
+    right: var(--drawer-edge);
+    gap: 5px;
+    flex-direction: row;
+    align-items: center;
+  }
+  .map-compact .control-group {
+    flex-direction: row;
+  }
+  .map-compact .control-rule {
+    width: 1px;
+    height: 22px;
+  }
+  .map-compact .view-button {
+    padding: 9px 4px;
+  }
+  .map-compact .simulation-banner {
+    top: 105px;
+  }
+  .map-compact .pin-placement-banner {
+    top: 131px;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .map-compact .topbar {
+    height: 50px;
+  }
+  .map-compact .statusbar {
+    height: 27px;
+    min-height: 27px;
+  }
+  .map-compact .rail {
+    padding-top: 5px;
+    gap: 4px;
+  }
+  .map-compact .rail-button {
+    min-height: 44px;
+  }
+  .map-compact .rail-bottom {
+    padding-bottom: 7px;
+  }
+  .map-compact .rail-coordinate {
+    display: none;
+  }
+  .map-compact:not(.following) .map-panel-drawer {
+    top: var(--drawer-edge);
+    bottom: auto;
+    right: auto;
+    width: clamp(230px, 38vw, 350px);
+    max-height: calc(100% - 2 * var(--drawer-edge));
+  }
+  .map-compact:not(.following) .map-panel-drawer[data-panel="traffic"] {
+    height: calc(100% - 2 * var(--drawer-edge));
+  }
+  .map-compact .mobile-region-picker {
+    top: 17px;
+    left: auto;
+    right: 165px;
+  }
+  .map-compact .map-topline {
+    left: auto;
+    right: 12px;
+    top: 12px;
+  }
+  .map-compact .map-breadcrumb {
+    display: none;
+  }
+  .map-compact .map-controls {
+    top: 58px;
+    right: 12px;
+    gap: 5px;
+  }
+  .map-compact .map-controls .icon-button {
+    width: 34px;
+    height: 31px;
+  }
+  .map-compact .view-button {
+    padding: 7px 0;
+  }
+  .map-compact .layers-popover {
+    top: 58px;
+    max-height: calc(100% - 66px);
+    overflow: auto;
+  }
+  .map-compact :is(.playback-bar, .simulation-banner, .pin-placement-banner) {
+    left: calc(var(--rail-width) + clamp(230px, 38vw, 350px) + 2 * var(--drawer-edge));
+    right: 58px;
+  }
+  .map-compact .details-panel {
+    top: 58px;
+    right: 58px;
+    left: auto;
+    bottom: 48px;
+    width: min(280px, 45%);
+    max-height: none;
+  }
+  .map-compact.following .radar-history-banner {
+    left: 12px;
+    top: 12px;
+    bottom: auto;
+    transform: none;
+    width: min(340px, calc(100% - 300px));
+    max-height: max(70px, calc(100% - var(--follow-panel-height, 182px) - 12px));
+    overflow: auto;
+  }
 }

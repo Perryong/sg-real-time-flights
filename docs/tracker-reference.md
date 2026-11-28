@@ -210,6 +210,8 @@ The daytime follow view uses the CC0 Poly Haven sky documented by [3DStreet](htt
 
 ## Regional weather overlays
 
+On wide maps, Traffic and Weather open side by side. On smaller maps, use **Traffic** or **Weather** to switch panels and **Collapse panels** to see more of the map. Search for a callsign in Traffic. Select a flight to locate it, then open Weather to adjust a layer or replay rain radar.
+
 Wind and Rain radar are off initially and remember their state for the browser session. They are available in Singapore Live mode, including Cesium aircraft-follow and pinned views. The aircraft map spans a 500 km radius; regional model wind samples cover that area, while the widest official NEA rain-radar product covers 480 km. Coverage outside the radar product remains unknown.
 
 **Regional surface wind · 10 m** shows Open-Meteo model estimates across the 500 km Singapore region. Color indicates speed in m/s. Short trails move downwind and switch to stationary arrows with reduced motion. The model valid time is shown in SGT. The layer uses a 125 km grid of 49 requested locations and fills the space between four neighboring samples with the same valid time. Gaps stay transparent. An isolated reading appears as an arrow or calm ring at its reported coordinates. At the edge of coverage, this symbol can extend beyond the shaded field.

@@ -17,22 +17,16 @@ function OutlookTime({at}:{at:number|null|undefined}){
  return <time dateTime={date.toISOString()}>{dateTime.format(date)} SGT</time>;
 }
 
-export default function ChangiOutlook({load,now,onDismiss}:{load:WeatherLoad;now:number;onDismiss:()=>void}){
+export default function ChangiOutlook({load,now,modal,onDismiss}:{load:WeatherLoad;now:number;modal:boolean;onDismiss:()=>void}){
  const dialog=useRef<HTMLDialogElement>(null);
  const close=useRef<HTMLButtonElement>(null);
  useLayoutEffect(()=>{
   const element=dialog.current!;
-  const narrow=window.matchMedia('(max-width: 800px)');
-  const show=()=>{
-   if(element.open)element.close();
-   if(narrow.matches)element.showModal();
-   else element.show();
-   close.current?.focus();
-  };
-  show();
-  narrow.addEventListener('change',show);
-  return ()=>{narrow.removeEventListener('change',show);if(element.open)element.close()};
- },[]);
+  if(modal)element.showModal();
+  else element.show();
+  close.current?.focus();
+  return ()=>{if(element.open)element.close()};
+ },[modal]);
 
  const data=load.phase==='ready'&&load.data.layer==='changi_outlook'?load.data:load.phase==='error'?load.cached:undefined;
  const freshness=outlookFreshness(data,now);
