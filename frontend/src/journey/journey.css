@@ -1,0 +1,260 @@
+.journey-panel {
+  margin: 16px 0;
+  padding-block: 13px 15px;
+  border-block: 1px solid var(--line);
+  color: #dce4e6;
+  min-width: 0;
+}
+
+.journey-heading,
+.journey-altitude figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.journey-heading h3 {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.journey-fit,
+.journey-locate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding-inline: 8px;
+  border: 1px solid #466052;
+  border-radius: 5px;
+  background: #22362e;
+  color: var(--lime);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.journey-fit:not(:disabled):hover,
+.journey-locate:hover {
+  background: #2d463a;
+}
+
+.journey-source,
+.journey-message,
+.journey-coverage {
+  color: #adc0c9;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.journey-source {
+  margin-top: 4px;
+}
+
+.journey-diverted {
+  color: var(--amber);
+}
+
+.journey-route {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 12px;
+  margin: 14px 0 0;
+}
+
+.journey-endpoint {
+  overflow-wrap: anywhere;
+}
+
+.journey-endpoint dt {
+  margin-bottom: 2px;
+  color: #adc0c9;
+  font-size: 11px;
+}
+
+.journey-endpoint dd {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.journey-endpoint strong {
+  font-size: 13px;
+}
+
+.journey-endpoint strong.journey-airport-code {
+  font: 500 16px/1.28 var(--mono);
+}
+
+.journey-endpoint time,
+.journey-reading time {
+  color: #adc0c9;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.journey-diversion {
+  grid-column: 1 / -1;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+}
+
+.journey-message {
+  margin-top: 9px;
+}
+
+.journey-altitude {
+  margin: 14px 0 0;
+  padding: 8px;
+  border: 1px solid #2d3e49;
+  border-radius: 7px;
+  background: #0b1820;
+}
+
+.journey-altitude figcaption {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.journey-altitude small,
+.journey-altitude p {
+  color: #adc0c9;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.journey-altitude p {
+  margin-top: 4px;
+}
+
+.journey-plot {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  color: var(--lime);
+  cursor: crosshair;
+}
+
+.journey-plot-axis line {
+  stroke: #334750;
+}
+
+.journey-plot-axis text {
+  fill: #b3c4cc;
+  font: 8.5px var(--mono);
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+.journey-plot-trace {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
+
+.journey-plot-observed {
+  fill: currentColor;
+}
+
+.journey-plot-estimate {
+  fill: #0b1820;
+  stroke: var(--amber);
+  stroke-width: 1.5;
+}
+
+.journey-plot-unknown {
+  stroke: #859daa;
+  stroke-width: 1.5;
+}
+
+.journey-plot-gap {
+  stroke: var(--amber);
+  stroke-dasharray: 2 3;
+  opacity: 0.55;
+}
+
+.journey-plot-cursor {
+  stroke: #94adb9;
+  stroke-dasharray: 2 3;
+}
+
+.journey-plot-point {
+  fill: currentColor;
+  stroke: #0b1820;
+  stroke-width: 1.5;
+}
+
+.journey-plot-point.estimated {
+  fill: var(--amber);
+}
+
+.journey-plot-times {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  padding-inline: 14% 3.5%;
+  color: #b3c4cc;
+  font: 9px var(--mono);
+}
+
+.journey-plot-times span:last-child {
+  text-align: end;
+}
+
+.journey-plot-times.single {
+  justify-content: center;
+}
+
+.journey-scrubber {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 2px 0;
+  accent-color: var(--lime);
+  cursor: pointer;
+}
+
+.journey-locate {
+  width: 100%;
+  margin-block: 6px;
+}
+
+.journey-reading {
+  display: grid;
+  gap: 2px;
+  min-height: 32px;
+  padding: 5px 0 0;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.journey-reading > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+}
+
+.journey-reading span {
+  color: #adc0c9;
+  font-size: 10px;
+}
+
+.journey-coverage {
+  display: grid;
+  gap: 2px;
+  padding-left: 15px;
+  margin: 8px 0 0;
+}
+
+@media (pointer: coarse) {
+  .journey-fit,
+  .journey-locate,
+  .journey-scrubber {
+    min-height: 44px;
+  }
+}

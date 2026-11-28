@@ -28,3 +28,5 @@ export const httpFeedUrl = liveAvailable && import.meta.env.VITE_LIVE_TRANSPORT 
 export const postalSearchUrl = `${backend}/api/location/postal`;
 
 export const weatherUrl = `${backend}/api/weather`;
+
+export const journeyUrl = `${backend}/api/journey`;

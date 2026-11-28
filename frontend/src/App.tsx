@@ -38,6 +38,8 @@ import TrafficList from "./components/TrafficList";
 import ProviderCredits from "./components/ProviderCredits";
 import AircraftDetails, { formatTime } from "./components/AircraftDetails";
 import SourceDetails from "./components/SourceDetails";
+import { JourneyPanel } from "./journey/JourneyPanel";
+import { useJourney } from "./hooks/useJourney";
 import { useTraffic } from "./hooks/useTraffic";
 import { freshness, effectiveUpstreamState } from "./data/freshness";
 import type { Airport, Mode, Track } from "./data/types";
@@ -142,6 +144,15 @@ export default function App() {
   );
   const chosen = tracks.find((t) => t.id === selected);
   if (chosen) previousSelection.current = chosen;
+  const journeyTrack = selected && previousSelection.current?.id === selected ? previousSelection.current : null;
+  const history = useJourney(journeyTrack, region === "singapore", feed.getNow, !!chosen);
+  const [fitRequest, setFitRequest] = useState({ id: "", nonce: 0 });
+  const journey = history.journey;
+  const fitJourney = () => {
+    if (journey) setFitRequest(previous => ({ id: journey.id, nonce: previous.nonce + 1 }));
+  };
+  const journeyPanel = journey && <JourneyPanel journey={journey} loading={history.loading}
+    message={history.message} selectedTime={history.selectedTime} onSelectTime={history.selectTime} onFit={fitJourney}/>;
   const lost = !!selected && !chosen;
   useEffect(() => {
     if (lost) setFollow(false);
@@ -261,6 +272,10 @@ export default function App() {
       <main className="workspace">
         <Suspense fallback={null}>
           <MapScene
+            journey={!follow && view !== "sky" ? journey : null}
+            journeySelectedTime={history.selectedTime}
+            journeyLocateRequest={history.locateRequest}
+            journeyFitRequest={fitRequest.id === journey?.id ? fitRequest.nonce : undefined}
             windPoints={regionalWind?.points??null}
             radarFrame={playback.frame}
             radarOpacity={weather.opacity}
@@ -596,17 +611,18 @@ export default function App() {
               setSelected(null);
               setFollow(false);
             }}
-          />
+          >{journeyPanel}</AircraftDetails>
         )}
         {follow&&chosen&&<FollowPanel track={chosen} tracks={tracks} now={feed.now} mode={feed.mode} camera={followCamera} style={followStyle} trails={trails} onCamera={setFollowCamera} onStyle={setFollowStyle} onTrails={()=>setTrails(!trails)} onSelect={id=>{setFollowCamera({...defaultFollowCamera});setSelected(id)}} onExit={()=>setFollow(false)}/>}
         {lost && (
-          <div className="lost-notice panel">
-            <strong>
-              Track lost ·{" "}
-              {previousSelection.current?.latest.callsign ?? selected}
-            </strong>
-            <p>Last position is no longer current. Follow stopped.</p>
-            <button onClick={() => setSelected(null)}>Dismiss</button>
+          <div className="details-panel panel" aria-label="Last selected aircraft">
+            <div className="section-kicker">
+              <span>LAST REGIONAL CONTACT</span>
+              <button className="icon-button small" aria-label="Dismiss" onClick={() => setSelected(null)}><X size={16}/></button>
+            </div>
+            <h2>{journey?.status === "regional" ? "Track lost · " : ""}{previousSelection.current?.latest.callsign ?? selected}</h2>
+            <p className="fine-print">The regional feed no longer has a current position for this aircraft.</p>
+            {journeyPanel}
           </div>
         )}
         {!mapReady && !mapError && (
