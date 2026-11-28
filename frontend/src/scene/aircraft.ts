@@ -199,7 +199,7 @@ export class AircraftLayer {
             distanceDisplayCondition: new DistanceDisplayCondition(0, 15000),
           },
           label: {
-            text: t.latest.callsign ?? t.latest.provider_id,
+            text: new CallbackProperty(() => current().latest.callsign ?? current().latest.provider_id, false),
             font: "600 11px sans-serif",
             fillColor: Color.fromCssColorString("#e6e9e3"),
             style: LabelStyle.FILL_AND_OUTLINE,

@@ -1530,12 +1530,16 @@ input {
   .statusbar button {
     font-size: 8px;
   }
+  .sidebar-open .left-panel-wrap:has(.traffic-panel) {
+    z-index: 9;
+  }
   .details-panel {
-    top: 66px;
+    top: auto;
     left: 65px;
     right: 60px;
     width: auto;
     bottom: 142px;
+    max-height: 42%;
     z-index: 8;
     padding: 15px 17px;
   }

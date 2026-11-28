@@ -143,6 +143,13 @@ export default function App() {
     setSelected(id);
     setFollow(false);
     if(view==='sky')setView('overhead');
+    if (!observerOpen && matchMedia("(max-width: 800px)").matches) setSidebar(false);
+  };
+  const chooseFromTraffic = (id: string) => {
+    choose(id);
+    setPlacing(false);
+    if (matchMedia("(max-width: 800px)").matches) setLayers(false);
+    setAction((previous) => ({ kind: "locate", id, nonce: previous.nonce + 1 }));
   };
   const switchMode = (mode: Mode) => {
     setSelected(null);
@@ -151,11 +158,11 @@ export default function App() {
     if(mode!=="live")setRegion("singapore");
     feed.setMode(mode);
   };
-  const camera = (kind: CameraAction["kind"], id?: string) => {
+  const camera = (kind: Exclude<CameraAction["kind"], "locate">, id?: string) => {
     setFollow(false);
     if (kind === "overview" || kind === "place" || kind === "pin") setView("overhead");
     if (kind === "runway") {setRegion("singapore");setSelected(null);setView("3d");}
-    setAction({ kind, id, nonce: Date.now() });
+    setAction((previous) => ({ kind, id, nonce: previous.nonce + 1 }));
   };
   const adjustFollowOrbit = (orbitDelta: number, elevationDelta: number) => {
     setFollowCamera(camera => {
@@ -315,7 +322,7 @@ export default function App() {
               sources={upstream?.sources}
               tracks={tracks}
               selected={selected}
-              onSelect={choose}
+              onSelect={chooseFromTraffic}
               now={feed.now}
               mode={feed.mode}
               query={query}
